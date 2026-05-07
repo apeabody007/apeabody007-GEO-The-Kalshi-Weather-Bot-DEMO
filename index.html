@@ -1,0 +1,2601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Cache-Control" content="no-store" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>GEO · The Kalshi Weather Bot (DEMO)</title>
+
+<!-- Progressive Web App: lets iOS Safari "Add to Home Screen" install
+     this as a standalone app with our icon, no browser chrome. -->
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="GEO" />
+<meta name="theme-color" content="#1a4380" />
+
+<!-- Theme bootstrap — runs before the stylesheet is applied so the
+     dark-mode CSS variables are active by the time the page paints. Avoids
+     a "flash of light theme" on reload for users who picked dark. -->
+<!-- Theme defaults to light. The toggle button flips to dark and the
+     choice is persisted to localStorage so reloads keep the same theme. -->
+<script>
+  // Inline + synchronous: must run before <style> evaluates so dark
+  // CSS vars apply on first paint instead of after a light flash.
+  try {
+    if (localStorage.getItem('geo-theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch (e) { /* localStorage blocked — fall back to light */ }
+</script>
+
+<style>
+  :root {
+    color-scheme: light;
+    /* Themed color tokens — light mode defaults. Dark overrides below in
+       :root[data-theme="dark"]. The key insight: only invert "page surface"
+       colors (bg, text, card chrome, table chrome). Pill accents and
+       brand colors stay similar and just get tweaked for legibility. */
+    --bg-start: #dceeff;
+    --bg-end:   #b6d8f7;
+    --text-main: #1a1a1a;
+    --text-title: #0c234e;
+    --text-tagline: rgba(12, 35, 78, 0.78);
+    --text-secondary: #666;
+    --text-muted: #999;
+    --card-bg: rgba(255, 255, 255, 0.86);
+    --card-border: rgba(255, 255, 255, 0.5);
+    --card-shadow: 0 1px 2px rgba(12, 35, 78, 0.06), 0 8px 20px rgba(12, 35, 78, 0.08);
+    --card-shadow-hover: 0 1px 2px rgba(12, 35, 78, 0.06), 0 12px 28px rgba(12, 35, 78, 0.12);
+    --card-title-color: rgba(12, 35, 78, 0.55);
+    --card-title-border: rgba(12, 35, 78, 0.12);
+    --section-header-color: rgba(12, 35, 78, 0.7);
+    --section-line: rgba(12, 35, 78, 0.15);
+    --table-th-color: #666;
+    --table-th-border: #e3e3e3;
+    --table-td-border: #f3f3f3;
+    --table-th-sticky-bg: rgba(255, 255, 255, 0.96);
+    --footer-color: rgba(12, 35, 78, 0.7);
+    --footer-line: rgba(12, 35, 78, 0.12);
+    --footer-link: #1a4380;
+    --footer-link-border: rgba(26, 67, 128, 0.25);
+    --pos-color: #1f7a3a;
+    --neg-color: #b3261e;
+    --code-bg: #f3f3f3;
+    --chart-axis: #888;
+    --chart-grid: rgba(12, 35, 78, 0.08);
+    --chart-zero: #ccc;
+    --chart-tip-bg: rgba(12, 35, 78, 0.95);
+    --chart-tip-fg: #fff;
+    --refresh-bg: rgba(255, 255, 255, 0.9);
+    --refresh-bg-hover: #fff;
+    --refresh-bg-active: #eaf2ff;
+    --refresh-border: rgba(26, 67, 128, 0.15);
+    --refresh-color: #1a4380;
+    --pill-tip-pos: #7fdfa1;
+    --pill-tip-neg: #ffa1a1;
+    /* Sticky title bar background — semi-transparent so the bg gradient
+       still shows through but readable, paired with backdrop blur. */
+    /* Bar uses a top-to-bottom gradient: nearly solid up top so the title
+       reads cleanly, fading toward translucent at the bottom so clouds in
+       the side gutters can scroll UP through the bar instead of getting
+       hard-clipped at the lower edge. Soft shadow under the bar still
+       defines its bottom without a crisp line. */
+    --sticky-title-bg: linear-gradient(180deg, rgba(220, 238, 255, 0.92) 0%, rgba(220, 238, 255, 0.92) 55%, rgba(220, 238, 255, 0.55) 100%);
+    --sticky-title-shadow: 0 6px 14px rgba(12, 35, 78, 0.16);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg-start: #0d1a36;
+    --bg-end:   #060c1f;
+    --text-main: #e3eaf6;
+    --text-title: #f5f9ff;
+    --text-tagline: rgba(229, 236, 247, 0.78);
+    --text-secondary: #9ba8bd;
+    --text-muted: #687389;
+    --card-bg: rgba(22, 36, 64, 0.78);
+    --card-border: rgba(255, 255, 255, 0.06);
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.45);
+    --card-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 32px rgba(0, 0, 0, 0.55);
+    --card-title-color: rgba(229, 236, 247, 0.55);
+    --card-title-border: rgba(255, 255, 255, 0.1);
+    --section-header-color: rgba(229, 236, 247, 0.7);
+    --section-line: rgba(229, 236, 247, 0.15);
+    --table-th-color: #9ba8bd;
+    --table-th-border: rgba(255, 255, 255, 0.12);
+    --table-td-border: rgba(255, 255, 255, 0.06);
+    --table-th-sticky-bg: rgba(22, 36, 64, 0.96);
+    --footer-color: rgba(229, 236, 247, 0.65);
+    --footer-line: rgba(229, 236, 247, 0.12);
+    --footer-link: #7fb1ff;
+    --footer-link-border: rgba(127, 177, 255, 0.3);
+    --pos-color: #4fd16f;
+    --neg-color: #ff7a7a;
+    --code-bg: rgba(255, 255, 255, 0.08);
+    --chart-axis: #8ea0bf;
+    --chart-grid: rgba(229, 236, 247, 0.08);
+    --chart-zero: rgba(229, 236, 247, 0.25);
+    --chart-tip-bg: rgba(245, 249, 255, 0.96);
+    --chart-tip-fg: #0c234e;
+    --refresh-bg: rgba(255, 255, 255, 0.08);
+    --refresh-bg-hover: rgba(255, 255, 255, 0.16);
+    --refresh-bg-active: rgba(127, 177, 255, 0.25);
+    --refresh-border: rgba(255, 255, 255, 0.12);
+    --refresh-color: #c8d8f5;
+    --pill-tip-pos: #4fd16f;
+    --pill-tip-neg: #ff7a7a;
+    --sticky-title-bg: linear-gradient(180deg, rgba(13, 26, 54, 0.92) 0%, rgba(13, 26, 54, 0.92) 55%, rgba(13, 26, 54, 0.55) 100%);
+    --sticky-title-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    /* Sky-blue gradient — slightly deeper at the bottom so cards "float"
+       against it. background-attachment: fixed keeps the gradient still
+       while content scrolls. Themed via --bg-start / --bg-end. */
+    background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+    background-attachment: fixed;
+    color: var(--text-main); margin: 0; padding: 16px;
+    font-size: 13px; line-height: 1.5;
+    transition: background 220ms ease, color 220ms ease;
+    /* position: relative anchors the absolutely-positioned cloud gutters
+       to the full document height so they scroll with content rather than
+       staying glued to the viewport. min-height: 100vh ensures the gutters
+       still have a viewport's worth of clouds on short-content pages. */
+    position: relative;
+    min-height: 100vh;
+  }
+  /* Centered stack: refresh button on top, title centered below, health
+     badge centered under that. The whole header is itself centered in
+     the page. */
+  .header {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px; margin-bottom: 14px; text-align: center;
+  }
+  h1 { margin: 0; color: var(--text-title); line-height: 1; }
+  /* Stacked title layout: "GEO" + icon on top, tagline beneath as a
+     subtitle. The whole h1 is one item inside the column-flex .header,
+     so refresh button + health badge continue stacking below. */
+  .title-block {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px;
+  }
+  .title-main {
+    display: flex; flex-direction: row; align-items: center;
+    gap: 14px;
+  }
+  /* "GEO" — the brand mark. Big, tight letter-spacing so it reads as a
+     wordmark instead of just bigger text. */
+  .title-block .brand {
+    font-size: 84px;
+    font-weight: 800;
+    letter-spacing: -2.2px;
+    line-height: 1;
+  }
+  /* Tagline — meaningfully smaller so the visual hierarchy is "GEO" first,
+     "what GEO is" second. Slightly lower weight + slight transparency to
+     defer to the brand mark. */
+  .title-block .title-sub {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    color: var(--text-tagline);
+    line-height: 1.1;
+  }
+  /* Sticky title wrapper — pins the GEO wordmark to the top of the viewport
+     as the user scrolls down. Lives OUTSIDE .header so the buttons / health
+     badge / last-refreshed stamp scroll away normally; only the brand stays
+     pinned. Negative horizontal margin extends the bar edge-to-edge over
+     the body padding so the translucent backdrop reads as a real top bar
+     rather than a floating chip. backdrop-filter blur + semi-transparent
+     bg gives the iOS-style "frosted" look that fits the PWA aesthetic and
+     keeps the cloud gradient visible underneath. */
+  .sticky-title {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    margin: -16px -16px 14px -16px;
+    padding: 14px 16px 12px 16px;
+    background: var(--sticky-title-bg);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: var(--sticky-title-shadow);
+    text-align: center;
+  }
+  .sticky-title h1 { display: inline-flex; position: relative; z-index: 1; }
+  /* Decoration layer behind the title text. Two SVG/HTML layers stacked: a
+     drifting-cloud layer for light mode and a starfield layer for dark
+     mode. Theme rule below toggles which one renders. pointer-events:none
+     so the deco never intercepts clicks on the title or its parent. */
+  .sticky-title-deco {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .sticky-title-clouds { display: block; }
+  .sticky-title-stars { display: none; }
+  :root[data-theme="dark"] .sticky-title-clouds { display: none; }
+  :root[data-theme="dark"] .sticky-title-stars { display: block; }
+  /* Cloud bands drift L→R at varying speeds for parallax. translate range
+     starts off-screen left and ends past the right edge so clouds fade
+     into and out of the bar gently rather than popping at the boundary.
+     Each band has a different duration so they don't sync up; negative
+     animation-delay starts each band partway through its cycle so the
+     bar is never empty on first paint. opacity stays modest so clouds
+     never compete with the GEO wordmark. */
+  .sticky-title-clouds .cloud {
+    position: absolute;
+    will-change: transform;
+  }
+  /* Three speed tiers across the 14 clouds for parallax depth: 5 fast,
+     5 medium (1.6× slower), 4 slow (2.5× slower). All staggered via
+     animation-delay so adjacent clouds don't sync up at the same point
+     in their drift cycle. */
+  /* Fast tier (~50–90s per drift) */
+  .sticky-title-clouds .cloud-a { animation: geo-cloud-drift 60s linear infinite; }
+  .sticky-title-clouds .cloud-b { animation: geo-cloud-drift 80s linear infinite; animation-delay: -27s; }
+  .sticky-title-clouds .cloud-c { animation: geo-cloud-drift 50s linear infinite; animation-delay: -17s; }
+  .sticky-title-clouds .cloud-d { animation: geo-cloud-drift 92s linear infinite; animation-delay: -40s; }
+  .sticky-title-clouds .cloud-e { animation: geo-cloud-drift 70s linear infinite; animation-delay: -33s; }
+  /* Medium tier (~80–145s per drift) */
+  .sticky-title-clouds .cloud-am { animation: geo-cloud-drift 96s linear infinite; animation-delay: -8s; }
+  .sticky-title-clouds .cloud-bm { animation: geo-cloud-drift 128s linear infinite; animation-delay: -50s; }
+  .sticky-title-clouds .cloud-cm { animation: geo-cloud-drift 80s linear infinite; animation-delay: -22s; }
+  .sticky-title-clouds .cloud-dm { animation: geo-cloud-drift 147s linear infinite; animation-delay: -68s; }
+  .sticky-title-clouds .cloud-em { animation: geo-cloud-drift 112s linear infinite; animation-delay: -42s; }
+  /* Slow tier (~125–230s per drift) — these are the "distant" clouds */
+  .sticky-title-clouds .cloud-as { animation: geo-cloud-drift 150s linear infinite; animation-delay: -25s; }
+  .sticky-title-clouds .cloud-bs { animation: geo-cloud-drift 200s linear infinite; animation-delay: -80s; }
+  .sticky-title-clouds .cloud-cs { animation: geo-cloud-drift 125s linear infinite; animation-delay: -55s; }
+  .sticky-title-clouds .cloud-ds { animation: geo-cloud-drift 230s linear infinite; animation-delay: -110s; }
+  /* Drift loop: ±110vw range guarantees that every cloud — regardless of
+     its `left` anchor (4% to 96%) — starts and ends fully off-screen, so
+     the keyframe loop reset is never visible (no "cloud disappearing in
+     mid-air"). Tradeoff: each cloud is off-screen for ~half the cycle,
+     but with 14 clouds the bar still reads as continuously populated. */
+  @keyframes geo-cloud-drift {
+    0%   { transform: translateX(-110vw); }
+    100% { transform: translateX(110vw); }
+  }
+  /* Dark-mode starfield. Mostly static so the bar doesn't feel busy at
+     night; ~5 stars get a slow opacity twinkle, staggered via per-element
+     animation-delay so the twinkles don't pulse in unison. */
+  .sticky-title-stars .star {
+    position: absolute;
+    width: 2px; height: 2px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+  }
+  .sticky-title-stars .star.dim { background: rgba(255, 255, 255, 0.45); }
+  .sticky-title-stars .star.bright { background: rgba(255, 255, 255, 1); width: 2.5px; height: 2.5px; }
+  .sticky-title-stars .star.twinkle { animation: geo-twinkle 6s ease-in-out infinite; }
+  @keyframes geo-twinkle {
+    0%, 100% { opacity: 0.95; }
+    50%      { opacity: 0.30; }
+  }
+  /* Open-exposure pulse dot — sits inline in the title row right after
+     the thermometer icon. Green + expanding-ring pulse when the bot has
+     open positions, gray + static when in cash. The ring is a CSS
+     box-shadow keyframe (no extra DOM), and prefers-reduced-motion below
+     respects users who don't want the heartbeat. */
+  .geo-pulse {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--text-tagline);
+    flex-shrink: 0;
+    align-self: center;
+    margin-left: 2px;
+    opacity: 0.45;
+    transition: background 220ms ease, opacity 220ms ease;
+  }
+  .geo-pulse[data-state="active"] {
+    background: var(--pos-color);
+    opacity: 1;
+    animation: geo-pulse-ring 1.9s ease-out infinite;
+  }
+  @keyframes geo-pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(31, 122, 58, 0.55); }
+    70%  { box-shadow: 0 0 0 11px rgba(31, 122, 58, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(31, 122, 58, 0); }
+  }
+  :root[data-theme="dark"] .geo-pulse[data-state="active"] {
+    animation-name: geo-pulse-ring-dark;
+  }
+  /* Pulse + label group. Absolutely positioned to the right of the
+     title-main row so it doesn't count toward the row's flex layout
+     width. We then nudge the WHOLE title-main left by ~12px (half the
+     dot's visible reach) so the visible cluster's optical center —
+     including the dot the eye perceives — aligns with the tagline below.
+     The label is hidden by default and fades in only on hover. */
+  .title-main { position: relative; transform: translateX(-12px); }
+  .geo-pulse-group {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 14px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .geo-pulse-label {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-tagline);
+    margin-left: 6px;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 180ms ease;
+    pointer-events: none;
+  }
+  .geo-pulse-group:hover .geo-pulse-label { opacity: 1; }
+  @keyframes geo-pulse-ring-dark {
+    0%   { box-shadow: 0 0 0 0 rgba(79, 209, 111, 0.55); }
+    70%  { box-shadow: 0 0 0 11px rgba(79, 209, 111, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(79, 209, 111, 0); }
+  }
+  /* Note: deliberately NOT honoring prefers-reduced-motion for the title
+     bar's drift/twinkle/pulse. The motion is the entire point of these
+     decorations — without it, the bar reads as a static brand mark and
+     loses its "live trading product" feel. Aaron has reduced-motion on
+     at the OS level for unrelated reasons; the bar opts back in. */
+  .app-icon {
+    width: 60px; height: 60px;
+    border-radius: 22%;  /* iOS-style "squircle" — matches Add-to-Home-Screen visual */
+    box-shadow: 0 2px 8px rgba(12, 35, 78, 0.22);
+    flex-shrink: 0;  /* never let the icon squish if the title wraps */
+  }
+  .subtitle { font-size: 11px; color: var(--text-tagline); }
+  /* The health badge sits on its own line right under the title. */
+  .health-line { display: block; }
+  /* "Last refreshed" stamp — quiet, sits under the health badge. */
+  .last-refreshed { font-size: 11px; color: var(--text-tagline); opacity: 0.85; }
+  /* Page footer — credit line + tech-stack stamp. Sits below the card
+     grid with breathing room so it reads as a separate signature block. */
+  .page-footer {
+    text-align: center;
+    margin: 32px auto 12px auto;
+    padding: 18px 12px 6px 12px;
+    color: var(--footer-color);
+    border-top: 1px solid var(--footer-line);
+    max-width: 720px;
+  }
+  .footer-line { font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
+  .footer-link { color: var(--footer-link); text-decoration: none; border-bottom: 1px solid var(--footer-link-border); transition: border-color 120ms ease; }
+  .footer-link:hover { border-bottom-color: var(--footer-link); }
+  .footer-line strong { font-weight: 700; color: var(--text-title); }
+  .footer-tech { font-size: 11px; color: var(--footer-color); opacity: 0.8; line-height: 1.6; }
+  .footer-quiet { font-size: 10px; color: var(--footer-color); opacity: 0.65; margin-top: 2px; font-style: italic; }
+  /* Page layout is now sectioned: an outer grid of single-column rows
+     (one per section header + one per card-row), with each card-row
+     itself a centered flexbox. This guarantees the cards in EVERY
+     section are centered in the viewport, instead of relying on the
+     grid's auto-fit math (which only centers when columns happen to cap
+     before consuming all available width). */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 14px;
+  }
+  .section-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+  }
+  .section-row .card {
+    flex: 0 1 440px;
+    min-width: 320px;
+  }
+  /* "Wide" cards (open positions table, resting orders, P&L chart, etc.)
+     keep their inline `grid-column: span 2` style — we re-target it via
+     attribute selector to give them a 2x flex-basis under the new flex
+     layout. */
+  .section-row .card[style*="span 2"] {
+    flex: 0 1 900px;
+    min-width: 320px;
+    max-width: 100%;
+  }
+  /* Section dividers — break the wall-of-cards into thematic groups so the
+     eye has somewhere to land. Spans the full grid width (1 / -1). The
+     fading rules on BOTH sides center the label visually so each section
+     reads as its own anchored block. */
+  .section-header {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 14px;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--section-header-color);
+    margin: 18px 0 -4px 0;
+    padding: 6px 6px 4px 6px;
+    text-align: center;
+  }
+  .section-header::before, .section-header::after {
+    content: ""; flex: 1; height: 1px;
+  }
+  .section-header::before {
+    background: linear-gradient(to left, var(--section-line), transparent);
+  }
+  .section-header::after {
+    background: linear-gradient(to right, var(--section-line), transparent);
+  }
+  .section-header:first-child { margin-top: 0; }
+  /* Section <details> wrapper — let the user collapse whole sections to
+     reduce density. The <summary> IS the section header. Default open. */
+  .dash-section > summary { list-style: none; cursor: pointer; user-select: none; }
+  .dash-section > summary::-webkit-details-marker { display: none; }
+  .dash-section > summary:hover { color: var(--text-title); }
+  /* When collapsed, drop the bottom margin since there's no content under it */
+  .dash-section:not([open]) > .section-header { margin-bottom: 0; }
+  .section-label {
+    display: inline-flex; align-items: center; gap: 12px;
+    white-space: nowrap;
+  }
+  .section-chevron {
+    display: inline-block;
+    transition: transform 200ms ease;
+    opacity: 0.85;
+    font-size: 1.15em;
+    font-weight: 700;
+    color: var(--text-title);
+  }
+  /* Collapsed state: chevrons point inward (toward each other) so the row
+     reads like ">  TITLE  <" — signaling "click to expand outward". Open
+     state: both point down (rotate 0). */
+  .dash-section:not([open]) .section-label > .section-chevron:first-child { transform: rotate(-90deg); }
+  .dash-section:not([open]) .section-label > .section-chevron:last-child { transform: rotate(90deg); }
+  /* Inside details, .section-row needs its own vertical margin so successive
+     rows don't smoosh together (the grid gap doesn't apply inside details) */
+  .dash-section > .section-row { margin-bottom: 18px; }
+  .dash-section > .section-row:last-of-type { margin-bottom: 0; }
+  /* sectionLocked() — demo build only. Same header height as section() so
+     the layout is unchanged, but with a lock icon, a "redacted in demo"
+     pill, and no clickable chevrons (cursor: default, pointer-events:
+     none). The card area below it is empty by design — the data has also
+     been stripped from window.DATA at the data-feed layer. */
+  .dash-section-locked {
+    margin: 0 0 18px 0;
+    border: 1px dashed var(--border, #d1d5db);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.02);
+  }
+  .section-header-locked {
+    cursor: default;
+    user-select: none;
+    padding: 14px 16px;
+    margin-bottom: 0;
+    opacity: 0.7;
+  }
+  .section-chevron-locked {
+    font-size: 1em;
+    margin-right: 4px;
+    color: var(--text-muted, #6b7280);
+  }
+  .section-locked-pill {
+    display: inline-block;
+    margin-left: 12px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #f1faee;
+    background: #457b9d;
+    border-radius: 4px;
+    vertical-align: middle;
+  }
+  /* Center the title and primary metric content inside each card so the
+     page reads symmetrically. Tables stay left-aligned (with .numeric
+     overrides for right-alignment) because data scans better that way,
+     and .help paragraphs stay left-aligned because centered paragraphs
+     read poorly. */
+  .card-title { text-align: center; }
+  .card > .big-number { text-align: center; }
+  .card > .sub-stat { text-align: center; }
+  .kpi-row > div { text-align: center; }
+  /* min-width: 0 is the canonical fix for "grid items overflow their track":
+     without it, a wide child (an 8-col table) forces the column to be its
+     min-content width — pushing content off-screen on phones. With it, the
+     child gets clamped to the column width and its own .table-scroll
+     wrapper takes over for horizontal scroll. */
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: var(--card-shadow);
+    min-width: 0;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 220ms ease, border-color 220ms ease;
+  }
+  /* Subtle lift on hover/focus — gives the page a hint of interactivity
+     without being distracting. Disabled on touch via @hover query. */
+  @media (hover: hover) {
+    /* Cartoon-style hover: card lifts up-left and the offset shadow grows
+       to match — same visual language as the pills + round buttons.
+       Soft fallback shadow stays under the cartoon offset for a touch of
+       depth without flattening the page. */
+    .card:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 4px 4px 0 rgba(12, 35, 78, 0.12), var(--card-shadow-hover);
+    }
+    :root[data-theme="dark"] .card:hover {
+      box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5), var(--card-shadow-hover);
+    }
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--card-title-color);
+    letter-spacing: 0.6px; text-transform: uppercase;
+    /* Pull the title up so the visual space above the text equals the
+       space below it (between text and the divider line). The card has
+       18px top-padding; with line-height: 1 (no implicit line-box buffer)
+       and margin-top: -7px, the gap above the text matches the 8px
+       padding-bottom below. -10px overshot — text sat slightly high. */
+    line-height: 1;
+    margin: -7px 0 12px 0; padding-bottom: 8px;
+    border-bottom: 1px solid var(--card-title-border);
+  }
+  /* About card — editorial / intro tile that reads as prose. Collapsible
+     <details> element. Collapsed: shows just the summary as a slim click
+     target. Expanded: shows the full prose with looser leading. Overrides
+     the global .card { text-align: center }. */
+  .about-card { text-align: left; padding: 0; line-height: 1.65; font-size: 14px; }
+  .about-summary {
+    list-style: none;             /* hide default disclosure triangle */
+    cursor: pointer;
+    padding: 10px 18px;
+    font-size: 13px;
+    color: var(--text-tagline);
+    text-align: center;
+    user-select: none;
+    transition: background 120ms ease;
+    border-radius: 16px;          /* match card border radius when collapsed */
+  }
+  .about-summary::-webkit-details-marker { display: none; }
+  .about-summary:hover { background: rgba(12, 35, 78, 0.04); }
+  :root[data-theme="dark"] .about-summary:hover { background: rgba(255, 255, 255, 0.04); }
+  /* When the <details> is open, restyle the summary as a top-banner */
+  .about-card[open] .about-summary {
+    border-bottom: 1px solid var(--card-title-border);
+    border-radius: 16px 16px 0 0;
+    padding-bottom: 14px;
+  }
+  .about-body { padding: 18px 26px 22px 26px; }
+  .about-card p { margin: 0 0 12px 0; }
+  .about-card p:last-child { margin-bottom: 0; }
+  .about-card .about-lead { font-size: 15px; }
+  .about-card strong { color: var(--text-title); font-weight: 700; }
+  /* Roadmap card — two-column "Recently shipped | Planned" grid, with a
+     stat row of counts above and a collapsible Backlog teaser below. */
+  .roadmap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    text-align: left;
+  }
+  @media (max-width: 720px) { .roadmap-grid { grid-template-columns: 1fr; gap: 16px; } }
+  .roadmap-col-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--card-title-color);
+    letter-spacing: 0.6px; text-transform: uppercase;
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--card-title-border);
+  }
+  .roadmap-table { font-size: 12px; }
+  .roadmap-table td { border-bottom: 1px solid var(--table-td-border); padding: 6px 0; }
+  .roadmap-table tr:last-child td { border-bottom: none; }
+  .roadmap-later summary { list-style: none; }
+  .roadmap-later summary::-webkit-details-marker { display: none; }
+  /* Stack the three collapsible lists with vertical breathing room */
+  .roadmap-collapsibles > details { margin-bottom: 10px; }
+  .roadmap-collapsibles > details:last-child { margin-bottom: 0; }
+  .roadmap-collapsibles > details > summary:hover { color: var(--text-title); }
+  .big-number { font-size: 36px; font-weight: 700; line-height: 1.1; letter-spacing: -0.6px; }
+  .big-number.pos { color: var(--pos-color); }
+  .big-number.neg { color: var(--neg-color); }
+  .big-number.neutral { color: var(--text-main); }
+  .sub-stat { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-weight: 600; color: var(--table-th-color); border-bottom: 1px solid var(--table-th-border); padding: 4px 6px 4px 0; font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
+  td { padding: 4px 6px 4px 0; vertical-align: top; border-bottom: 1px solid var(--table-td-border); }
+  td.numeric, th.numeric { text-align: right; }
+  td.mono, th.mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11px; }
+  .pos { color: var(--pos-color); }
+  .neg { color: var(--neg-color); }
+  .muted { color: var(--text-muted); }
+  /* Cartoon-outline pills with original pastel backgrounds preserved. The
+     border + offset shadow give the cartoon look; the soft pastel fill is
+     the original color shading Aaron wanted to keep. Border + shadow
+     inherit from `color`, so each variant only sets bg + color. */
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: 1.6px solid currentColor;
+    box-shadow: 2px 2px 0 currentColor;
+  }
+  .pill-open { background: #e7f0fe; color: #1a4380; }
+  .pill-won, .pill-good, .pill-agree, .pill-ok { background: #d8edd8; color: #1f5e2c; }
+  .pill-lost, .pill-disagree, .pill-error, .pill-overdue { background: #f8dadb; color: #8d2422; }
+  .pill-warn, .pill-split, .pill-stale { background: #fff0c2; color: #806100; }
+  .pill-unknown { background: #eee; color: #666; }
+  /* Click-to-trade button that replaces the static "would trade" pill in
+     the watch-list verdict column. Light-blue palette (matches
+     .wl-refresh-btn) so it reads as a deliberate action surface and is
+     visually distinct from the green "good"/red "bad" verdict pills.
+     The disabled state covers in-flight clicks (the user already
+     submitted, we're waiting on the bot subprocess to spin up and
+     Telegram to fire). 2026-05-05: recolored from green to blue at
+     Aaron's request; green was too easily mistaken for a passive
+     "verdict" pill. */
+  /* Cartoon-outline action pill — outlined style with hover lift + active
+     press, on the original light-blue pastel bg. */
+  .pill-action { background: #e7f0fe; color: #1a4380; cursor: pointer;
+                 border: 1.6px solid #1a4380; padding: 3px 10px;
+                 font-family: inherit;
+                 box-shadow: 2px 2px 0 #1a4380;
+                 transition: transform 100ms ease, box-shadow 100ms ease; }
+  .pill-action:hover { background: #d0e0f6; transform: translate(-1px, -1px); box-shadow: 3px 3px 0 #1a4380; }
+  .pill-action:active { background: #b8d0ec; transform: translate(1px, 1px); box-shadow: 0 0 0 #1a4380; }
+  .pill-action[disabled] { background: #eee; color: #888; border-color: #ccc; box-shadow: 2px 2px 0 #ccc;
+                           cursor: wait; transform: none; }
+  .trade-status { display: block; font-size: 10px; margin-top: 4px;
+                  color: var(--text-muted); }
+  .trade-status.error { color: #8d2422; }
+  .trade-status.ok    { color: #1f5e2c; }
+  /* Watch-list refresh button. Lives in the card title; intentionally
+     subtler than the click-to-trade buttons (those are the ones that
+     actually move money) but still has clear hover feedback. Note: the
+     class is `wl-refresh-btn` not `refresh-btn` to avoid colliding with
+     the existing 40px circular page-level "Refresh now" button. */
+  /* Round outlined refresh button — matches the page-level refresh + theme
+     toggle visual language (cartoon offset shadow, lift on hover). Sits
+     inline with the Watch List card title. icon-only since the round shape
+     doesn't have room for a text label. */
+  .wl-refresh-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: 10px; vertical-align: middle;
+    width: 28px; height: 28px; padding: 0;
+    border-radius: 50%;
+    background: #e7f0fe; color: #1a4380;
+    border: 1.6px solid #1a4380;
+    box-shadow: 2px 2px 0 #1a4380;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px; font-weight: 700;
+    line-height: 1;
+    transition: transform 100ms ease, box-shadow 100ms ease, background 120ms ease;
+  }
+  .wl-refresh-btn:hover { background: #d0e0f6; transform: translate(-1px, -1px); box-shadow: 3px 3px 0 #1a4380; }
+  .wl-refresh-btn:active { background: #b8d0ec; transform: translate(1px, 1px); box-shadow: 0 0 0 #1a4380; }
+  .wl-refresh-btn[disabled] { background: #eee; color: #888; cursor: wait;
+                               border-color: #ccc; box-shadow: 2px 2px 0 #ccc;
+                               transform: none; }
+  .wl-refresh-status { display: inline-block; margin-left: 8px;
+                       font-size: 11px; color: var(--text-muted);
+                       font-weight: normal; vertical-align: middle; }
+  .wl-refresh-status.error { color: #8d2422; }
+  .wl-refresh-status.ok    { color: #1f5e2c; }
+  /* Loud full-width banner for dashboard self-checks (e.g. aggregate-filter
+     drift). Red so it can't be missed; sits above all sections. */
+  .demo-banner {
+    background: linear-gradient(90deg, #1d3557 0%, #457b9d 100%);
+    color: #f1faee; border: 1px solid #1d3557;
+    padding: 14px 18px; margin: 0 0 16px 0; border-radius: 8px;
+    font-size: 14px; line-height: 1.5;
+  }
+  .demo-banner strong { display: block; margin-bottom: 4px; font-size: 15px; }
+  .demo-banner a { color: #a8dadc; text-decoration: underline; }
+  .sanity-banner { background: #f8dadb; color: #8d2422; border: 1px solid #d68a8d;
+                   border-radius: 6px; padding: 10px 14px; margin: 10px 0 16px; }
+  .sanity-banner strong { display: block; margin-bottom: 4px; }
+  .sanity-banner .detail { font-size: 12px; line-height: 1.45; }
+  .health-badge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; margin-left: 8px; }
+  button { background: #1a4380; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button:hover { background: #245397; }
+  .help { font-size: 10px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+  .empty { color: var(--text-muted); font-style: italic; padding: 6px 0; }
+  .kpi-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .kpi-row > div { flex: 1; min-width: 120px; }
+
+  /* Roadmap stat tiles wrapped in <a> become clickable deep-links into
+     the matching #shipped / #planned / #backlog anchors of the roadmap
+     HTML. Inherit color so the green/orange "big-number" tints survive
+     and add a subtle hover affordance so users can tell they're tappable.
+     `flex: 1; min-width: 120px` keeps these matching the sizing of the
+     plain-<div> tiles in other .kpi-row instances elsewhere on the page. */
+  .roadmap-stat-link {
+    display: block; text-decoration: none; color: inherit; text-align: center;
+    flex: 1; min-width: 120px;
+    border-radius: 8px; padding: 4px 6px;
+    transition: background 120ms ease, transform 120ms ease;
+  }
+  .roadmap-stat-link:hover { background: var(--refresh-bg-hover); }
+  .roadmap-stat-link:active { transform: scale(0.97); background: var(--refresh-bg-active); }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11px; background: var(--code-bg); padding: 1px 4px; border-radius: 2px; }
+  /* P&L chart hover dots + tooltip. Dots grow slightly on hover so the
+     hit-target is forgiving; the tooltip is positioned in JS by reading
+     each dot's getBoundingClientRect at hover time. The card itself is
+     position:relative so the absolute tooltip lives in card-space. */
+  .pnl-dot { cursor: pointer; transition: r 120ms ease; }
+  .pnl-dot:hover { r: 5.5; }
+  /* Calibration plot bubbles — same hover behavior; size grows ~25%. */
+  .cal-dot { cursor: pointer; transition: fill-opacity 120ms ease, stroke-width 120ms ease; }
+  .cal-dot:hover { fill-opacity: 0.85; stroke-width: 2.5; }
+  .chart-tip {
+    position: absolute;
+    background: var(--chart-tip-bg);
+    color: var(--chart-tip-fg);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    z-index: 100;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    transform: translate(-50%, calc(-100% - 10px));  /* center above the dot */
+  }
+  .chart-tip.visible { opacity: 1; }
+  .chart-tip .tip-date { font-weight: 600; font-size: 12px; }
+  .chart-tip .tip-ticker { font-family: "SF Mono", Menlo, monospace; font-size: 9.5px; opacity: 0.7; margin-top: 1px; }
+  .chart-tip .tip-row { margin-top: 4px; }
+  .chart-tip .tip-pos { color: var(--pill-tip-pos); }
+  .chart-tip .tip-neg { color: var(--pill-tip-neg); }
+  /* iOS PWA standalone: pad for the notch/dynamic island and the home-bar. */
+  @supports (padding: max(0px)) {
+    body { padding-top: max(16px, env(safe-area-inset-top));
+           padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  }
+  /* Wrapper inserted around every <table> by JS at render time. Lets the
+     table itself scroll horizontally inside its card while the page stays
+     put. The negative margin + matching padding visually extends the
+     scroll surface to the card edges so the swipe area feels natural. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch;
+                  margin: 0 -14px; padding: 0 14px; }
+  /* For data sections that can grow long, cap the table at a sensible
+     height and let it scroll vertically inside the card. Sticky thead
+     keeps column labels visible while scrolling. */
+  .scrollable {
+    max-height: 320px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -14px;
+    padding: 0 14px;
+    border-radius: 4px;
+  }
+  .scrollable thead th {
+    position: sticky;
+    top: 0;
+    background: var(--table-th-sticky-bg);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 2;
+  }
+  /* Phone layout: collapse the 2-column "wide" cards (set inline by the
+     renderers) into one column, tighten the body padding, and dial sizes
+     down a touch so the cards still feel balanced on a 390px viewport.
+     Top/bottom padding USES env(safe-area-inset-*) so the title clears
+     the Dynamic Island / notch and the home indicator doesn't sit on
+     top of cards. */
+  @media (max-width: 720px) {
+    body {
+      padding-left: 14px; padding-right: 14px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+    }
+    .grid { grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+    .card[style*="grid-column: span 2"] { grid-column: span 1 !important; }
+    /* Phone: give every section divider real breathing room on both sides
+       — the desktop default uses negative bottom margin to tuck cards
+       under the divider, but on mobile that makes the divider feel glued
+       to whatever's below it. Bump top + bottom so the divider reads as
+       its own "chapter break" both when the section is open (separates
+       header from cards) and collapsed (separates from neighbor section). */
+    .section-header {
+      margin: 22px 0 14px 0;
+      font-size: 12px;
+      letter-spacing: 1.3px;
+      padding: 8px 6px;
+    }
+    /* Collapsed sections need slightly more outer space so 3-4 in a row
+       don't crowd, plus a bigger tap target on the bare summary bar. */
+    .dash-section:not([open]) > .section-header {
+      margin: 20px 0;
+      padding: 10px 6px;
+    }
+    .dash-section:first-of-type > .section-header { margin-top: 8px; }
+    .dash-section:last-of-type:not([open]) > .section-header { margin-bottom: 8px; }
+    .card { padding: 14px 16px; border-radius: 16px; }
+    .header { gap: 10px; }
+    .big-number { font-size: 33px; }
+    .app-icon { width: 50px; height: 50px; }
+    .title-main { gap: 10px; }
+    .title-block .brand { font-size: 60px; letter-spacing: -1.5px; }
+    .title-block .title-sub { font-size: 20px; letter-spacing: -0.25px; }
+    /* Phone: extend sticky bar to the trimmed mobile body padding (14px) and
+       inset its top edge under the iPhone status bar / notch via env(). */
+    .sticky-title {
+      margin: calc(-1 * max(14px, env(safe-area-inset-top))) -14px 12px -14px;
+      padding: max(10px, env(safe-area-inset-top)) 14px 10px 14px;
+    }
+    /* Kill horizontal scroll on mobile — instead, shrink fonts and let
+       text wrap so every table fits within the card. The vertical
+       .scrollable cap stays in place so long tables still scroll down. */
+    .table-scroll, .scrollable {
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    .scrollable { overflow-y: auto; }
+    .card table { font-size: 10.5px; }
+    .card table th {
+      font-size: 9px;
+      padding: 3px 4px 3px 0;
+      letter-spacing: 0.2px;
+    }
+    .card table td {
+      padding: 3px 4px 3px 0;
+      word-break: break-word;
+    }
+    .card table td.mono, .card table th.mono { font-size: 9.5px; }
+    /* Open Positions has 8 columns — too many for ~380px even at small
+       font. Hide the lowest-priority ones on mobile: Settles (always
+       computable from ticker date) and Forecast verdict (analytical, not
+       urgent). The visible 6: Ticker, Side × Qty, Entry, Cost, Win %,
+       Unrealized — that's the position card you actually need. */
+    .card table.positions-table th:nth-child(2),
+    .card table.positions-table td:nth-child(2),
+    .card table.positions-table th:nth-child(8),
+    .card table.positions-table td:nth-child(8) { display: none; }
+    .card table.positions-table tfoot td[colspan="4"] { /* totals row spans the right amount */ }
+  }
+  /* Circular refresh icon button — iOS-style chunky tap target. */
+  .refresh-btn {
+    background: var(--refresh-bg);
+    color: var(--refresh-color);
+    border: 1px solid var(--refresh-border);
+    width: 40px; height: 40px; padding: 0;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 100ms ease, box-shadow 100ms ease, background 120ms ease, color 120ms ease;
+    /* Cartoon offset shadow — same visual language as the cartoon clouds
+       and pills, but the round button keeps its current chrome (faint
+       border, subtle bg). Hover/active use translate so the button appears
+       to lift and press. */
+    box-shadow: 2.5px 2.5px 0 rgba(12, 35, 78, 0.32);
+  }
+  .refresh-btn:hover { background: var(--refresh-bg-hover); transform: translate(-1px, -1px); box-shadow: 3.5px 3.5px 0 rgba(12, 35, 78, 0.32); }
+  .refresh-btn:active { transform: translate(1.5px, 1.5px); box-shadow: 0.5px 0.5px 0 rgba(12, 35, 78, 0.32); background: var(--refresh-bg-active); }
+  :root[data-theme="dark"] .refresh-btn { box-shadow: 2.5px 2.5px 0 rgba(0, 0, 0, 0.55); }
+  :root[data-theme="dark"] .refresh-btn:hover { box-shadow: 3.5px 3.5px 0 rgba(0, 0, 0, 0.55); }
+  :root[data-theme="dark"] .refresh-btn:active { box-shadow: 0.5px 0.5px 0 rgba(0, 0, 0, 0.55); }
+  .refresh-btn[disabled] { cursor: wait; }
+  .refresh-btn[disabled] .refresh-icon { animation: spin 700ms linear infinite; }
+  .refresh-icon { width: 18px; height: 18px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Header button row — refresh + theme toggle sit side by side under the
+     title, matching the existing column-flex .header layout (the row is
+     itself one item in the column). */
+  .header-buttons { display: flex; flex-direction: row; gap: 10px; align-items: center; }
+  /* Theme toggle: show moon in light mode, sun in dark mode. The default
+     (no data-theme attribute) is light. */
+  .theme-icon { width: 18px; height: 18px; }
+  .theme-btn .icon-sun { display: none; }
+  :root[data-theme="dark"] .theme-btn .icon-moon { display: none; }
+  :root[data-theme="dark"] .theme-btn .icon-sun { display: inline-block; }
+
+  /* ---- Weather-themed side borders: cumulus clusters ----
+     Two SVG columns hugging the document edges. position: absolute (anchored
+     to body, not viewport) so clouds scroll WITH content as you move down
+     the page — feels like passing real clouds rather than the same six
+     drifting along with the cursor. The cluster pattern is defined once in
+     a hidden <defs> block and repeated via <use href="#cloud-block" y="N"/>
+     at 1000-unit intervals, giving 6000px of coverage which handles any
+     plausible dashboard scroll height. Right side mirrors the left via
+     Each side has its own distinct cluster block (cloud-block-l and
+     cloud-block-r) so the gutters don't read as mirrored — different sizes,
+     y-positions, and cx offsets on each side give a more random feel like
+     real weather. overflow: hidden crops any pattern below body height.
+     Hidden under 720px where gutters disappear. */
+  .wind-border {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 110px;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .wind-border.wind-left { left: 0; }
+  .wind-border.wind-right { right: 0; }
+  .wind-border svg {
+    width: 110px; height: 6000px; display: block;
+    /* Stroke set on the <svg> root so SVG attribute inheritance carries it
+       into the <use> shadow DOM (CSS selectors targeting paths inside use
+       don't reach the cloned shadow tree, but inherited presentation
+       attributes do). Same trick as the fill via `color: currentColor`. */
+    stroke: var(--cloud-outline);
+    stroke-width: 2.2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  /* Cloud color is delivered via the `color` property on .wind-border, then
+     read inside the SVG via fill="currentColor" on the #cloud-block root
+     (see the <defs> below). This indirection is necessary because <use>
+     instantiates a shadow tree, and class-targeted CSS rules (.cloud {
+     fill: ... }) don't reliably cross the use boundary in Safari/Chrome —
+     they leave shapes with the SVG default fill (black). The color +
+     currentColor approach inherits cleanly through the shadow tree.
+
+     IMPORTANT: --cloud-tone must use alpha=1. Each cloud is built from
+     overlapping circles + an ellipse inside a <g class="cloud">, and the
+     depth cue is the per-group `opacity` attribute (0.62–0.93). If the
+     fill color itself carries alpha<1, the overlapping shapes WITHIN a
+     cluster paint over each other and the overlap regions look chunky/
+     lumpy because the per-shape transparency double-applies before the
+     group is composited. Keep depth modulation on the group opacity; keep
+     fill color fully opaque. The 2026-05-04 dark-mode "clouds look weird"
+     report was exactly this — alpha=0.55 on the fill caused the artifact. */
+  :root { --cloud-tone: rgb(255, 255, 255); --cloud-outline: #1a3a6b; }
+  :root[data-theme="dark"] { --cloud-tone: rgb(204, 218, 240); --cloud-outline: rgba(13, 26, 54, 0.65); }
+  .wind-border { color: var(--cloud-tone); }
+  /* Cloud stroke is set on the .wind-border svg root above (so it reaches
+     into the <use> shadow DOM via SVG attribute inheritance). Stroke width
+     scales naturally with each cloud's transform — bigger clouds get
+     proportionally chunkier outlines, which reads as "closer." */
+  /* Gutter clouds stay in BOTH light and dark modes (light = sunny sky,
+     dark = clouds against night sky). Earlier attempt to hide them all in
+     dark mode overshot — Aaron wants the clouds, just not whichever
+     specific cluster was floating behind the top card. Pending location. */
+  /* Shooting star — JS spawns a .shooting-star div in .sticky-title-stars
+     every 10–20 seconds at a random position outside the GEO text band.
+     The dot itself is small + bright; the trail is a CSS pseudo-element
+     gradient extending behind it. translate + opacity fade over ~1.2s,
+     then JS removes the element. */
+  .shooting-star {
+    position: absolute;
+    width: 2.5px; height: 2.5px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.85);
+    pointer-events: none;
+    animation: geo-shoot 1.3s ease-out forwards;
+  }
+  .shooting-star::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(to left, rgba(255,255,255,0.85), rgba(255,255,255,0));
+    transform: translateY(-50%);
+  }
+  @keyframes geo-shoot {
+    0%   { opacity: 0; transform: translate(0, 0); }
+    15%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(140px, 55px); }
+  }
+  /* Lift body content above the wind layer. Without this the fixed-position
+     wind divs paint OVER static-positioned siblings; z-index:1 with relative
+     positioning guarantees cards always sit on top. */
+  .header, #content, .page-footer {
+    position: relative;
+    z-index: 1;
+  }
+  /* Sticky title needs its own z-index above z:1 so it covers cards as
+     they scroll past underneath. */
+  .sticky-title { /* z-index already set in .sticky-title block above */ }
+  @media (max-width: 720px) {
+    .wind-border { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Cloud cluster definitions referenced by both gutters via <use href>.
+     Two distinct blocks (left vs right) so the gutters don't read as a
+     mirrored pair — each side has its own size mix, y-rhythm, and cx
+     offsets. fill="currentColor" on each block lets the .wind-border
+     `color` property drive cloud color cleanly across the use boundary
+     (CSS class selectors are unreliable through use shadow trees). -->
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Cartoon-outline clouds (Mario-style), 6 per gutter at varied scales.
+         Path A: classic puffy cumulus (110x50 unscaled). Path B: wider/
+         flatter alternative for shape variety. transform=translate(x y)
+         scale(s) — translate in parent coords, scale uniform. -->
+    <g id="cloud-block-l" fill="currentColor">
+      <g class="cloud" opacity="0.85" transform="translate(30 56) scale(0.55)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+      <g class="cloud" opacity="0.92" transform="translate(2 263) scale(0.7)">
+        <path d="M 12 28 Q 4 26 6 18 Q 8 12 18 14 Q 24 4 36 10 Q 50 4 56 14 Q 72 12 76 22 Q 86 22 84 28 Q 50 34 26 30 Q 14 30 12 28 Z"/>
+      </g>
+      <g class="cloud" opacity="0.7" transform="translate(63 480) scale(0.4)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+      <g class="cloud" opacity="0.96" transform="translate(3 664) scale(0.85)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+      <g class="cloud" opacity="0.82" transform="translate(29 849) scale(0.65)">
+        <path d="M 12 28 Q 4 26 6 18 Q 8 12 18 14 Q 24 4 36 10 Q 50 4 56 14 Q 72 12 76 22 Q 86 22 84 28 Q 50 34 26 30 Q 14 30 12 28 Z"/>
+      </g>
+      <g class="cloud" opacity="0.78" transform="translate(2 972) scale(0.5)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+    </g>
+    <g id="cloud-block-r" fill="currentColor">
+      <!-- First top-right cluster (cy~107) removed 2026-05-05 — it sat at
+           the bar's lower-translucent zone and bled through the dark-mode
+           frosted bg as a visible blob behind the top card area. -->
+
+      <g class="cloud" opacity="0.74" transform="translate(0 282) scale(0.5)">
+        <path d="M 12 28 Q 4 26 6 18 Q 8 12 18 14 Q 24 4 36 10 Q 50 4 56 14 Q 72 12 76 22 Q 86 22 84 28 Q 50 34 26 30 Q 14 30 12 28 Z"/>
+      </g>
+      <g class="cloud" opacity="0.88" transform="translate(27 472) scale(0.7)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+      <g class="cloud" opacity="0.96" transform="translate(0 664) scale(0.85)">
+        <path d="M 12 28 Q 4 26 6 18 Q 8 12 18 14 Q 24 4 36 10 Q 50 4 56 14 Q 72 12 76 22 Q 86 22 84 28 Q 50 34 26 30 Q 14 30 12 28 Z"/>
+      </g>
+      <g class="cloud" opacity="0.72" transform="translate(53 838) scale(0.45)">
+        <path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z"/>
+      </g>
+      <g class="cloud" opacity="0.84" transform="translate(0 953) scale(0.65)">
+        <path d="M 12 28 Q 4 26 6 18 Q 8 12 18 14 Q 24 4 36 10 Q 50 4 56 14 Q 72 12 76 22 Q 86 22 84 28 Q 50 34 26 30 Q 14 30 12 28 Z"/>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<!-- Decorative cumulus clusters anchored to left/right gutters of the document
+     (position: absolute on .wind-border + position: relative on body), so they
+     scroll with content. Each gutter pulls from its own block (cloud-block-l
+     vs cloud-block-r) and tiles it six times via <use y="N"/> for 6000px of
+     vertical coverage. aria-hidden because purely decorative. -->
+<div class="wind-border wind-left" aria-hidden="true">
+  <svg viewBox="0 0 110 6000" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <use href="#cloud-block-l" y="0"/>
+    <use href="#cloud-block-l" y="1000"/>
+    <use href="#cloud-block-l" y="2000"/>
+    <use href="#cloud-block-l" y="3000"/>
+    <use href="#cloud-block-l" y="4000"/>
+    <use href="#cloud-block-l" y="5000"/>
+  </svg>
+</div>
+<div class="wind-border wind-right" aria-hidden="true">
+  <svg viewBox="0 0 110 6000" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <use href="#cloud-block-r" y="0"/>
+    <use href="#cloud-block-r" y="1000"/>
+    <use href="#cloud-block-r" y="2000"/>
+    <use href="#cloud-block-r" y="3000"/>
+    <use href="#cloud-block-r" y="4000"/>
+    <use href="#cloud-block-r" y="5000"/>
+  </svg>
+</div>
+
+<div class="sticky-title">
+  <!-- Decoration layer (light mode): drifting cumulus across the bar.
+       Each .cloud div is independently animated; staggered durations and
+       starting positions keep the overall pattern feeling organic. -->
+  <div class="sticky-title-deco sticky-title-clouds" aria-hidden="true">
+    <!-- 14 clouds total, all anchored OUTSIDE the central 35–65% horizontal
+         band so the GEO wordmark always loads cloud-free. Sizes alternate
+         S/M/L; animation classes (cloud-a..cloud-e) cycle so adjacent
+         clouds drift at different speeds for parallax. -->
+    <!-- Cartoon-outline clouds matching the gutter style. Single-path
+         clouds, navy stroke via vector-effect="non-scaling-stroke" so all
+         clouds share the same line weight regardless of size. SVG viewBox
+         is 110x50 (the cartoon path's native bbox); width/height attrs on
+         each <svg> set the rendered size, varying for parallax depth. -->
+    <div class="cloud cloud-a" style="top: 8px; left: 4%;"><svg width="60" height="27" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.95)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-c" style="top: 4px; left: 16%;"><svg width="95" height="43" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.95)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-dm" style="top: 26px; left: 26%;"><svg width="50" height="23" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.92)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-b" style="top: 4px; left: 72%;"><svg width="115" height="52" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.95)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-e" style="top: 22px; left: 88%;"><svg width="80" height="36" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.93)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-bm" style="top: 64px; left: 8%;"><svg width="85" height="38" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.85)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-em" style="top: 86px; left: 22%;"><svg width="55" height="25" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.78)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-cm" style="top: 60px; left: 78%;"><svg width="65" height="29" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.85)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-am" style="top: 86px; left: 88%;"><svg width="95" height="43" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.85)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-ds" style="top: 124px; left: 5%;"><svg width="120" height="55" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.78)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-as" style="top: 118px; left: 22%;"><svg width="60" height="27" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.78)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-cs" style="top: 144px; left: 32%;"><svg width="45" height="20" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.72)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-d" style="top: 122px; left: 72%;"><svg width="65" height="29" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.78)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+    <div class="cloud cloud-bs" style="top: 130px; left: 86%;"><svg width="100" height="45" viewBox="0 0 110 50"><path d="M 18 38 Q 8 36 10 26 Q 12 18 22 20 Q 22 8 36 12 Q 42 4 54 10 Q 64 4 70 14 Q 86 12 88 24 Q 100 22 100 34 Q 102 42 90 42 Q 60 48 36 44 Q 22 44 18 38 Z" fill="rgba(255,255,255,0.78)" stroke="#1a3a6b" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg></div>
+  </div>
+  <!-- Decoration layer (dark mode): static starfield. Five stars get a
+       slow opacity twinkle (staggered) so the bar isn't fully static at
+       night; the rest hold steady. Positions are hand-scattered to feel
+       organic rather than gridded. -->
+  <div class="sticky-title-deco sticky-title-stars" aria-hidden="true">
+    <!-- All stars positioned outside the 25–75% horizontal band so the
+         GEO wordmark always loads with a clean halo around it. -->
+    <div class="star bright twinkle" style="top: 18px; left: 4%;"></div>
+    <div class="star" style="top: 32px; left: 9%;"></div>
+    <div class="star dim" style="top: 50px; left: 3%;"></div>
+    <div class="star" style="top: 68px; left: 14%;"></div>
+    <div class="star twinkle" style="top: 24px; left: 18%; animation-delay: -2s;"></div>
+    <div class="star dim" style="top: 92px; left: 7%;"></div>
+    <div class="star" style="top: 110px; left: 2%;"></div>
+    <div class="star bright" style="top: 132px; left: 12%;"></div>
+    <div class="star twinkle" style="top: 145px; left: 6%; animation-delay: -4s;"></div>
+    <div class="star" style="top: 22px; left: 22%;"></div>
+    <div class="star dim" style="top: 60px; left: 24%;"></div>
+    <div class="star" style="top: 100px; left: 20%;"></div>
+    <div class="star bright twinkle" style="top: 30px; left: 78%; animation-delay: -1s;"></div>
+    <div class="star" style="top: 14px; left: 82%;"></div>
+    <div class="star dim" style="top: 56px; left: 88%;"></div>
+    <div class="star" style="top: 76px; left: 76%;"></div>
+    <div class="star twinkle" style="top: 88px; left: 94%; animation-delay: -5s;"></div>
+    <div class="star bright" style="top: 118px; left: 84%;"></div>
+    <div class="star dim" style="top: 138px; left: 90%;"></div>
+    <div class="star" style="top: 148px; left: 80%;"></div>
+    <div class="star" style="top: 40px; left: 96%;"></div>
+    <div class="star dim" style="top: 108px; left: 86%;"></div>
+  </div>
+  <h1 class="title-block">
+    <span class="title-main">
+      <span class="brand">GEO</span>
+      <img src="icon-192.png" class="app-icon" alt="" />
+      <!-- Open-exposure pulse dot. JS in render() sets data-state="active"
+           when DATA.kalshi.n_positions > 0; otherwise data-state="idle".
+           title attribute is the tooltip on hover (desktop) and is also
+           updated by render() to show the count. -->
+      <span class="geo-pulse-group">
+        <span class="geo-pulse" id="geo-pulse" data-state="idle" title="Open-positions indicator"></span>
+        <span class="geo-pulse-label" id="geo-pulse-label">--</span>
+      </span>
+    </span>
+    <span class="title-sub">The Kalshi Weather Bot<span class="demo-suffix" id="demo-title-suffix" style="display:inline;">&nbsp;(DEMO)</span></span>
+  </h1>
+</div>
+<div class="header">
+  <div class="header-buttons">
+    <button class="refresh-btn" id="refresh-btn" type="button" onclick="refreshDashboard()" aria-label="Refresh now" title="Refresh now — pulls fresh balance, positions, and prices from Kalshi">
+      <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" />
+        <path d="M21 3v5h-5" />
+        <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />
+        <path d="M3 21v-5h5" />
+      </svg>
+    </button>
+    <button class="refresh-btn theme-btn" id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode — preference is remembered across reloads">
+      <!-- Moon (shown in light mode → click to go dark) -->
+      <svg class="theme-icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+      <!-- Sun (shown in dark mode → click to go light) -->
+      <svg class="theme-icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4" />
+        <line x1="12" y1="2" x2="12" y2="4.5" />
+        <line x1="12" y1="19.5" x2="12" y2="22" />
+        <line x1="4.93" y1="4.93" x2="6.7" y2="6.7" />
+        <line x1="17.3" y1="17.3" x2="19.07" y2="19.07" />
+        <line x1="2" y1="12" x2="4.5" y2="12" />
+        <line x1="19.5" y1="12" x2="22" y2="12" />
+        <line x1="4.93" y1="19.07" x2="6.7" y2="17.3" />
+        <line x1="17.3" y1="6.7" x2="19.07" y2="4.93" />
+      </svg>
+    </button>
+  </div>
+  <span class="health-line" id="health-badge" style="display:none;"></span>
+  <div class="last-refreshed" id="last-refreshed" style="display:none;"></div>
+</div>
+
+<script>
+// Manual refresh: full reload re-hits the server, which re-runs
+// _render_dashboard.py and serves a fresh page. Disabling the button
+// prevents accidental double-taps from queueing a second render
+// (the server has its own lock as backup). The CSS-driven spin
+// animation kicks in via [disabled] selector, no JS needed.
+function refreshDashboard() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-label', 'Refreshing…'); }
+  // Reload the page — the server re-runs _render_dashboard.py on every GET
+  // and serves fresh data. The button's CSS [disabled] selector keeps the
+  // ↻ icon spinning until the new page paints.
+  window.location.reload();
+}
+
+// Light/dark theme toggle — persisted across reloads via localStorage.
+// The bootstrap script in <head> reads the saved value before paint so
+// there's no flash. We don't follow OS preference, just user choice.
+function toggleTheme() {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    root.removeAttribute('data-theme');
+    try { localStorage.setItem('geo-theme', 'light'); } catch (e) {}
+  } else {
+    root.setAttribute('data-theme', 'dark');
+    try { localStorage.setItem('geo-theme', 'dark'); } catch (e) {}
+  }
+}
+
+</script>
+
+<div id="content"></div>
+
+<footer class="page-footer">
+  <div class="footer-line">Built by <strong>Aaron Peabody</strong> &middot; <a href="https://www.linkedin.com/in/aaronpeabody7/" target="_blank" rel="noopener noreferrer" class="footer-link">linkedin.com/in/aaronpeabody7</a></div>
+  <div class="footer-tech">Python 3.11 &middot; multi-model probabilistic forecasting &middot; Kalshi API &middot; Tailscale-served PWA</div>
+  <div class="footer-tech footer-quiet">Live algorithmic trading on a CFTC-regulated event-prediction exchange</div>
+</footer>
+
+<script>
+const DATA = {"reconcile": {"ok": true, "n_new": 0, "n_unsettled_remaining": 0}, "sanity": {"warnings": []}, "demo_mode": true, "n_phantom_open_trades": 0, "generated_at_utc": "2026-05-07T22:07:07+00:00", "kalshi": {"ok": true, "balance_usd": 142.18, "portfolio_usd": 26.44, "positions": [{"ticker": "KXHIGHOKC-26MAY08-B73.5", "contracts": -4.0, "exposure_usd": 2.28, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.28, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHNOLA-26MAY07-T80", "contracts": 5.0, "exposure_usd": 2.4, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.4, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHSFO-26MAY08-T66", "contracts": -4.0, "exposure_usd": 2.28, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.28, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHPHX-26MAY07-B90.5", "contracts": -5.0, "exposure_usd": 2.3, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.3, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHTSATX-26MAY07-B81.5", "contracts": -5.0, "exposure_usd": 2.3, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.3, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHDC-26MAY08-B72.5", "contracts": 5.0, "exposure_usd": 2.95, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.95, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHTSATX-26MAY08-T84", "contracts": -2.0, "exposure_usd": 1.24, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 1.24, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHOKC-26MAY07-B78.5", "contracts": -5.0, "exposure_usd": 2.3, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.3, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHATL-26MAY07-B77.5", "contracts": 4.0, "exposure_usd": 2.4, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.4, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHMIN-26MAY07-B64.5", "contracts": 2.0, "exposure_usd": 1.04, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 1.04, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHSEA-26MAY07-B62.5", "contracts": 4.0, "exposure_usd": 2.24, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 2.24, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHLV-26MAY07-B89.5", "contracts": -2.0, "exposure_usd": 1.06, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 1.06, "last_updated_ts": "2026-05-07T18:58:00+00:00"}, {"ticker": "KXHIGHNOLA-26MAY07-T80", "contracts": -3.0, "exposure_usd": 1.47, "fees_usd": 0.0, "realized_usd": 0.0, "total_traded_usd": 1.47, "last_updated_ts": "2026-05-07T18:58:00+00:00"}], "n_positions": 13, "n_positions_total": 13}, "pnl": {"realized_24h": 0.0, "realized_7d": 18.81, "realized_all": 56.04, "n_trades": 165, "n_settled": 152, "n_won": 103, "n_lost": 49, "win_rate": 0.6776, "open_cost_usd": 26.26}, "kpi": {"n_settled": 152, "brier": 0.3345, "roi": 0.2278, "realized_pnl": 56.04}, "recent_trades": [{"ts": "2026-05-06T21:57:00+00:00", "ticker": "KXHIGHPHIL-26MAY06-T67", "city": "Philadelphia", "target_date": "2026-05-06", "side": "no", "price_cents": 47, "n_contracts": 4, "cost_usd": 1.88, "our_prob": 0.8027, "market_prob": 0.53, "edge": 0.2727, "status": "settled", "outcome": "no", "observed_high_f": 70.7, "pnl_usd": 2.12, "state": "won"}, {"ts": "2026-05-06T21:27:00+00:00", "ticker": "KXHIGHBOS-26MAY06-B62.5", "city": "Boston", "target_date": "2026-05-06", "side": "yes", "price_cents": 58, "n_contracts": 2, "cost_usd": 1.16, "our_prob": 0.5551, "market_prob": 0.58, "edge": -0.0249, "status": "settled", "outcome": "no", "observed_high_f": 64.7, "pnl_usd": -1.16, "state": "lost"}, {"ts": "2026-05-06T13:37:00+00:00", "ticker": "KXHIGHOKC-26MAY06-T74", "city": "Oklahoma City", "target_date": "2026-05-06", "side": "no", "price_cents": 46, "n_contracts": 5, "cost_usd": 2.3, "our_prob": 0.8562, "market_prob": 0.54, "edge": 0.3162, "status": "settled", "outcome": "no", "observed_high_f": 77.0, "pnl_usd": 2.7, "state": "won"}, {"ts": "2026-05-06T11:50:00+00:00", "ticker": "KXHIGHDAL-26MAY06-T79", "city": "Dallas", "target_date": "2026-05-06", "side": "yes", "price_cents": 47, "n_contracts": 3, "cost_usd": 1.41, "our_prob": 0.7879, "market_prob": 0.47, "edge": 0.3179, "status": "settled", "outcome": "yes", "observed_high_f": 83.5, "pnl_usd": 1.59, "state": "won"}, {"ts": "2026-05-06T00:59:00+00:00", "ticker": "KXHIGHNOLA-26MAY06-T81", "city": "New Orleans", "target_date": "2026-05-06", "side": "no", "price_cents": 48, "n_contracts": 1, "cost_usd": 0.48, "our_prob": 0.8897, "market_prob": 0.52, "edge": 0.3697, "status": "settled", "outcome": "no", "observed_high_f": 83.4, "pnl_usd": 0.52, "state": "won"}, {"ts": "2026-05-05T20:48:00+00:00", "ticker": "KXHIGHTSATX-26MAY05-T81", "city": "San Antonio", "target_date": "2026-05-05", "side": "no", "price_cents": 52, "n_contracts": 4, "cost_usd": 2.08, "our_prob": 0.557, "market_prob": 0.48, "edge": 0.077, "status": "settled", "outcome": "yes", "observed_high_f": 81.0, "pnl_usd": -2.08, "state": "lost"}, {"ts": "2026-05-05T20:34:00+00:00", "ticker": "KXHIGHSFO-26MAY05-T64", "city": "San Francisco", "target_date": "2026-05-05", "side": "yes", "price_cents": 48, "n_contracts": 3, "cost_usd": 1.44, "our_prob": 0.6833, "market_prob": 0.48, "edge": 0.2033, "status": "settled", "outcome": "yes", "observed_high_f": 59.5, "pnl_usd": 1.56, "state": "won"}, {"ts": "2026-05-05T20:26:00+00:00", "ticker": "KXHIGHCHI-26MAY05-B65.5", "city": "Chicago", "target_date": "2026-05-05", "side": "no", "price_cents": 58, "n_contracts": 4, "cost_usd": 2.32, "our_prob": 0.5805, "market_prob": 0.42, "edge": 0.1605, "status": "settled", "outcome": "no", "observed_high_f": 57.8, "pnl_usd": 1.6800000000000002, "state": "won"}, {"ts": "2026-05-05T16:46:00+00:00", "ticker": "KXHIGHCHI-26MAY05-B66.5", "city": "Chicago", "target_date": "2026-05-05", "side": "no", "price_cents": 62, "n_contracts": 4, "cost_usd": 2.48, "our_prob": 0.797, "market_prob": 0.38, "edge": 0.417, "status": "settled", "outcome": "no", "observed_high_f": 63.4, "pnl_usd": 1.52, "state": "won"}, {"ts": "2026-05-05T14:06:00+00:00", "ticker": "KXHIGHPHX-26MAY06-T89", "city": "Phoenix", "target_date": "2026-05-06", "side": "no", "price_cents": 48, "n_contracts": 1, "cost_usd": 0.48, "our_prob": 0.7023, "market_prob": 0.52, "edge": 0.1823, "status": "settled", "outcome": "no", "observed_high_f": 89.8, "pnl_usd": 0.52, "state": "won"}, {"ts": "2026-05-05T09:53:00+00:00", "ticker": "KXHIGHATL-26MAY05-B74.5", "city": "Atlanta", "target_date": "2026-05-05", "side": "no", "price_cents": 57, "n_contracts": 2, "cost_usd": 1.14, "our_prob": 0.6946, "market_prob": 0.43, "edge": 0.2646, "status": "settled", "outcome": "no", "observed_high_f": 70.1, "pnl_usd": 0.8600000000000001, "state": "won"}, {"ts": "2026-05-05T09:05:00+00:00", "ticker": "KXHIGHPHX-26MAY05-T90", "city": "Phoenix", "target_date": "2026-05-05", "side": "yes", "price_cents": 61, "n_contracts": 2, "cost_usd": 1.22, "our_prob": 0.8254, "market_prob": 0.61, "edge": 0.2154, "status": "settled", "outcome": "yes", "observed_high_f": 83.5, "pnl_usd": 0.78, "state": "won"}, {"ts": "2026-05-05T07:03:00+00:00", "ticker": "KXHIGHOKC-26MAY05-B79.5", "city": "Oklahoma City", "target_date": "2026-05-05", "side": "no", "price_cents": 62, "n_contracts": 2, "cost_usd": 1.24, "our_prob": 0.8881, "market_prob": 0.38, "edge": 0.5081, "status": "settled", "outcome": "no", "observed_high_f": 71.7, "pnl_usd": 0.76, "state": "won"}, {"ts": "2026-05-05T05:57:00+00:00", "ticker": "KXHIGHOKC-26MAY05-B79.5", "city": "Oklahoma City", "target_date": "2026-05-05", "side": "no", "price_cents": 57, "n_contracts": 4, "cost_usd": 2.28, "our_prob": 0.5848, "market_prob": 0.43, "edge": 0.1548, "status": "settled", "outcome": "no", "observed_high_f": 71.7, "pnl_usd": 1.7200000000000002, "state": "won"}, {"ts": "2026-05-05T03:57:00+00:00", "ticker": "KXHIGHPHIL-26MAY06-B72.5", "city": "Philadelphia", "target_date": "2026-05-06", "side": "no", "price_cents": 58, "n_contracts": 2, "cost_usd": 1.16, "our_prob": 0.7834, "market_prob": 0.42, "edge": 0.3634, "status": "settled", "outcome": "no", "observed_high_f": 67.2, "pnl_usd": 0.8400000000000001, "state": "won"}, {"ts": "2026-05-05T03:11:00+00:00", "ticker": "KXHIGHSFO-26MAY05-B65.5", "city": "San Francisco", "target_date": "2026-05-05", "side": "yes", "price_cents": 56, "n_contracts": 2, "cost_usd": 1.12, "our_prob": 0.6849, "market_prob": 0.56, "edge": 0.1249, "status": "settled", "outcome": "no", "observed_high_f": 65.0, "pnl_usd": -1.12, "state": "lost"}, {"ts": "2026-05-04T22:31:00+00:00", "ticker": "KXHIGHSFO-26MAY05-T66", "city": "San Francisco", "target_date": "2026-05-05", "side": "no", "price_cents": 50, "n_contracts": 4, "cost_usd": 2.0, "our_prob": 0.664, "market_prob": 0.5, "edge": 0.164, "status": "settled", "outcome": "no", "observed_high_f": 74.1, "pnl_usd": 2.0, "state": "won"}, {"ts": "2026-05-04T21:23:00+00:00", "ticker": "KXHIGHHOU-26MAY04-B82.5", "city": "Houston", "target_date": "2026-05-04", "side": "yes", "price_cents": 58, "n_contracts": 3, "cost_usd": 1.74, "our_prob": 0.7214, "market_prob": 0.58, "edge": 0.1414, "status": "settled", "outcome": "yes", "observed_high_f": 79.6, "pnl_usd": 1.26, "state": "won"}, {"ts": "2026-05-04T19:15:00+00:00", "ticker": "KXHIGHCHI-26MAY05-T64", "city": "Chicago", "target_date": "2026-05-05", "side": "no", "price_cents": 56, "n_contracts": 4, "cost_usd": 2.24, "our_prob": 0.5948, "market_prob": 0.44, "edge": 0.1548, "status": "settled", "outcome": "no", "observed_high_f": 64.3, "pnl_usd": 1.7599999999999998, "state": "won"}, {"ts": "2026-05-04T15:21:00+00:00", "ticker": "KXHIGHMIA-26MAY05-T87", "city": "Miami", "target_date": "2026-05-05", "side": "no", "price_cents": 47, "n_contracts": 4, "cost_usd": 1.88, "our_prob": 0.725, "market_prob": 0.53, "edge": 0.195, "status": "settled", "outcome": "no", "observed_high_f": 81.2, "pnl_usd": 2.12, "state": "won"}, {"ts": "2026-05-04T13:55:00+00:00", "ticker": "KXHIGHPHIL-26MAY04-B72.5", "city": "Philadelphia", "target_date": "2026-05-04", "side": "no", "price_cents": 50, "n_contracts": 4, "cost_usd": 2.0, "our_prob": 0.8547, "market_prob": 0.5, "edge": 0.3547, "status": "settled", "outcome": "yes", "observed_high_f": 63.7, "pnl_usd": -2.0, "state": "lost"}, {"ts": "2026-05-04T13:36:00+00:00", "ticker": "KXHIGHMIN-26MAY04-T63", "city": "Minneapolis", "target_date": "2026-05-04", "side": "no", "price_cents": 49, "n_contracts": 1, "cost_usd": 0.49, "our_prob": 0.8781, "market_prob": 0.51, "edge": 0.3681, "status": "settled", "outcome": "yes", "observed_high_f": 62.0, "pnl_usd": -0.49, "state": "lost"}, {"ts": "2026-05-04T13:21:00+00:00", "ticker": "KXHIGHLAX-26MAY04-T76", "city": "Los Angeles", "target_date": "2026-05-04", "side": "yes", "price_cents": 45, "n_contracts": 2, "cost_usd": 0.9, "our_prob": 0.7115, "market_prob": 0.45, "edge": 0.2615, "status": "settled", "outcome": "yes", "observed_high_f": 64.9, "pnl_usd": 1.1, "state": "won"}, {"ts": "2026-05-04T12:42:00+00:00", "ticker": "KXHIGHPHIL-26MAY04-B72.5", "city": "Philadelphia", "target_date": "2026-05-04", "side": "no", "price_cents": 59, "n_contracts": 4, "cost_usd": 2.36, "our_prob": 0.5571, "market_prob": 0.41, "edge": 0.1471, "status": "settled", "outcome": "yes", "observed_high_f": 63.7, "pnl_usd": -2.36, "state": "lost"}, {"ts": "2026-05-04T00:23:00+00:00", "ticker": "KXHIGHATL-26MAY04-T77", "city": "Atlanta", "target_date": "2026-05-04", "side": "yes", "price_cents": 58, "n_contracts": 3, "cost_usd": 1.74, "our_prob": 0.8315, "market_prob": 0.58, "edge": 0.2515, "status": "settled", "outcome": "yes", "observed_high_f": 77.2, "pnl_usd": 1.26, "state": "won"}, {"ts": "2026-05-04T00:15:00+00:00", "ticker": "KXHIGHSFO-26MAY04-T63", "city": "San Francisco", "target_date": "2026-05-04", "side": "no", "price_cents": 49, "n_contracts": 1, "cost_usd": 0.49, "our_prob": 0.746, "market_prob": 0.51, "edge": 0.236, "status": "settled", "outcome": "no", "observed_high_f": 66.7, "pnl_usd": 0.51, "state": "won"}, {"ts": "2026-05-04T00:08:00+00:00", "ticker": "KXHIGHLAX-26MAY04-T76", "city": "Los Angeles", "target_date": "2026-05-04", "side": "no", "price_cents": 49, "n_contracts": 3, "cost_usd": 1.47, "our_prob": 0.8117, "market_prob": 0.51, "edge": 0.3017, "status": "settled", "outcome": "yes", "observed_high_f": 64.9, "pnl_usd": -1.47, "state": "lost"}, {"ts": "2026-05-03T22:18:00+00:00", "ticker": "KXHIGHOKC-26MAY03-T77", "city": "Oklahoma City", "target_date": "2026-05-03", "side": "no", "price_cents": 57, "n_contracts": 2, "cost_usd": 1.14, "our_prob": 0.7479, "market_prob": 0.43, "edge": 0.3179, "status": "settled", "outcome": "no", "observed_high_f": 77.2, "pnl_usd": 0.8600000000000001, "state": "won"}, {"ts": "2026-05-03T20:48:00+00:00", "ticker": "KXHIGHMIN-26MAY03-T66", "city": "Minneapolis", "target_date": "2026-05-03", "side": "no", "price_cents": 60, "n_contracts": 3, "cost_usd": 1.8, "our_prob": 0.6199, "market_prob": 0.4, "edge": 0.2199, "status": "settled", "outcome": "no", "observed_high_f": 64.4, "pnl_usd": 1.2, "state": "won"}, {"ts": "2026-05-03T17:05:00+00:00", "ticker": "KXHIGHTSATX-26MAY03-T80", "city": "San Antonio", "target_date": "2026-05-03", "side": "no", "price_cents": 59, "n_contracts": 2, "cost_usd": 1.18, "our_prob": 0.6789, "market_prob": 0.41, "edge": 0.2689, "status": "settled", "outcome": "yes", "observed_high_f": 89.4, "pnl_usd": -1.18, "state": "lost"}, {"ts": "2026-05-03T14:44:00+00:00", "ticker": "KXHIGHMIN-26MAY03-T63", "city": "Minneapolis", "target_date": "2026-05-03", "side": "yes", "price_cents": 54, "n_contracts": 1, "cost_usd": 0.54, "our_prob": 0.6473, "market_prob": 0.54, "edge": 0.1073, "status": "settled", "outcome": "yes", "observed_high_f": 58.8, "pnl_usd": 0.45999999999999996, "state": "won"}, {"ts": "2026-05-03T11:09:00+00:00", "ticker": "KXHIGHSFO-26MAY03-B67.5", "city": "San Francisco", "target_date": "2026-05-03", "side": "yes", "price_cents": 49, "n_contracts": 4, "cost_usd": 1.96, "our_prob": 0.6328, "market_prob": 0.49, "edge": 0.1428, "status": "settled", "outcome": "yes", "observed_high_f": 66.4, "pnl_usd": 2.04, "state": "won"}, {"ts": "2026-05-03T09:54:00+00:00", "ticker": "KXHIGHNY-26MAY04-T69", "city": "New York", "target_date": "2026-05-04", "side": "yes", "price_cents": 45, "n_contracts": 3, "cost_usd": 1.35, "our_prob": 0.6962, "market_prob": 0.45, "edge": 0.2462, "status": "settled", "outcome": "no", "observed_high_f": 64.6, "pnl_usd": -1.35, "state": "lost"}, {"ts": "2026-05-03T07:00:00+00:00", "ticker": "KXHIGHLV-26MAY04-T86", "city": "Las Vegas", "target_date": "2026-05-04", "side": "no", "price_cents": 59, "n_contracts": 5, "cost_usd": 2.95, "our_prob": 0.7876, "market_prob": 0.41, "edge": 0.3776, "status": "settled", "outcome": "no", "observed_high_f": 85.4, "pnl_usd": 2.05, "state": "won"}, {"ts": "2026-05-03T06:38:00+00:00", "ticker": "KXHIGHPHIL-26MAY03-B70.5", "city": "Philadelphia", "target_date": "2026-05-03", "side": "no", "price_cents": 53, "n_contracts": 2, "cost_usd": 1.06, "our_prob": 0.8565, "market_prob": 0.47, "edge": 0.3865, "status": "settled", "outcome": "no", "observed_high_f": 64.9, "pnl_usd": 0.94, "state": "won"}, {"ts": "2026-05-03T02:33:00+00:00", "ticker": "KXHIGHSEA-26MAY03-T62", "city": "Seattle", "target_date": "2026-05-03", "side": "no", "price_cents": 47, "n_contracts": 1, "cost_usd": 0.47, "our_prob": 0.7234, "market_prob": 0.53, "edge": 0.1934, "status": "settled", "outcome": "no", "observed_high_f": 58.9, "pnl_usd": 0.53, "state": "won"}, {"ts": "2026-05-03T00:15:00+00:00", "ticker": "KXHIGHBOS-26MAY03-T64", "city": "Boston", "target_date": "2026-05-03", "side": "no", "price_cents": 55, "n_contracts": 5, "cost_usd": 2.75, "our_prob": 0.7148, "market_prob": 0.45, "edge": 0.2648, "status": "settled", "outcome": "yes", "observed_high_f": 68.1, "pnl_usd": -2.75, "state": "lost"}, {"ts": "2026-05-02T23:30:00+00:00", "ticker": "KXHIGHDAL-26MAY02-B80.5", "city": "Dallas", "target_date": "2026-05-02", "side": "no", "price_cents": 60, "n_contracts": 4, "cost_usd": 2.4, "our_prob": 0.6209, "market_prob": 0.4, "edge": 0.2209, "status": "settled", "outcome": "yes", "observed_high_f": 80.7, "pnl_usd": -2.4, "state": "lost"}, {"ts": "2026-05-02T22:03:00+00:00", "ticker": "KXHIGHHOU-26MAY02-T81", "city": "Houston", "target_date": "2026-05-02", "side": "no", "price_cents": 56, "n_contracts": 5, "cost_usd": 2.8, "our_prob": 0.6371, "market_prob": 0.44, "edge": 0.1971, "status": "settled", "outcome": "no", "observed_high_f": 73.7, "pnl_usd": 2.2, "state": "won"}, {"ts": "2026-05-02T21:25:00+00:00", "ticker": "KXHIGHTSATX-26MAY02-B80.5", "city": "San Antonio", "target_date": "2026-05-02", "side": "no", "price_cents": 47, "n_contracts": 2, "cost_usd": 0.94, "our_prob": 0.7773, "market_prob": 0.53, "edge": 0.2473, "status": "settled", "outcome": "yes", "observed_high_f": 89.2, "pnl_usd": -0.94, "state": "lost"}, {"ts": "2026-05-02T15:36:00+00:00", "ticker": "KXHIGHSFO-26MAY03-T65", "city": "San Francisco", "target_date": "2026-05-03", "side": "yes", "price_cents": 57, "n_contracts": 4, "cost_usd": 2.28, "our_prob": 0.5853, "market_prob": 0.57, "edge": 0.0153, "status": "settled", "outcome": "yes", "observed_high_f": 65.2, "pnl_usd": 1.7200000000000002, "state": "won"}, {"ts": "2026-05-02T15:08:00+00:00", "ticker": "KXHIGHBOS-26MAY03-B61.5", "city": "Boston", "target_date": "2026-05-03", "side": "no", "price_cents": 57, "n_contracts": 2, "cost_usd": 1.14, "our_prob": 0.7377, "market_prob": 0.43, "edge": 0.3077, "status": "settled", "outcome": "no", "observed_high_f": 62.0, "pnl_usd": 0.8600000000000001, "state": "won"}, {"ts": "2026-05-02T10:48:00+00:00", "ticker": "KXHIGHATL-26MAY03-B75.5", "city": "Atlanta", "target_date": "2026-05-03", "side": "no", "price_cents": 57, "n_contracts": 5, "cost_usd": 2.85, "our_prob": 0.7188, "market_prob": 0.43, "edge": 0.2888, "status": "settled", "outcome": "yes", "observed_high_f": 82.1, "pnl_usd": -2.85, "state": "lost"}, {"ts": "2026-05-02T07:30:00+00:00", "ticker": "KXHIGHOKC-26MAY03-T73", "city": "Oklahoma City", "target_date": "2026-05-03", "side": "yes", "price_cents": 58, "n_contracts": 2, "cost_usd": 1.16, "our_prob": 0.8464, "market_prob": 0.58, "edge": 0.2664, "status": "settled", "outcome": "yes", "observed_high_f": 79.8, "pnl_usd": 0.8400000000000001, "state": "won"}, {"ts": "2026-05-02T04:33:00+00:00", "ticker": "KXHIGHDEN-26MAY02-T70", "city": "Denver", "target_date": "2026-05-02", "side": "yes", "price_cents": 59, "n_contracts": 3, "cost_usd": 1.77, "our_prob": 0.8112, "market_prob": 0.59, "edge": 0.2212, "status": "settled", "outcome": "yes", "observed_high_f": 64.2, "pnl_usd": 1.23, "state": "won"}, {"ts": "2026-05-02T04:17:00+00:00", "ticker": "KXHIGHPHIL-26MAY02-T70", "city": "Philadelphia", "target_date": "2026-05-02", "side": "yes", "price_cents": 56, "n_contracts": 2, "cost_usd": 1.12, "our_prob": 0.6144, "market_prob": 0.56, "edge": 0.0544, "status": "settled", "outcome": "yes", "observed_high_f": 78.6, "pnl_usd": 0.8799999999999999, "state": "won"}, {"ts": "2026-05-01T16:26:00+00:00", "ticker": "KXHIGHNOLA-26MAY02-T81", "city": "New Orleans", "target_date": "2026-05-02", "side": "yes", "price_cents": 60, "n_contracts": 4, "cost_usd": 2.4, "our_prob": 0.7498, "market_prob": 0.6, "edge": 0.1498, "status": "settled", "outcome": "yes", "observed_high_f": 81.4, "pnl_usd": 1.6, "state": "won"}, {"ts": "2026-05-01T16:20:00+00:00", "ticker": "KXHIGHDAL-26MAY02-T82", "city": "Dallas", "target_date": "2026-05-02", "side": "no", "price_cents": 57, "n_contracts": 4, "cost_usd": 2.28, "our_prob": 0.7502, "market_prob": 0.43, "edge": 0.3202, "status": "settled", "outcome": "yes", "observed_high_f": 77.8, "pnl_usd": -2.28, "state": "lost"}, {"ts": "2026-05-01T13:33:00+00:00", "ticker": "KXHIGHATL-26MAY01-T79", "city": "Atlanta", "target_date": "2026-05-01", "side": "no", "price_cents": 50, "n_contracts": 4, "cost_usd": 2.0, "our_prob": 0.5577, "market_prob": 0.5, "edge": 0.0577, "status": "settled", "outcome": "no", "observed_high_f": 67.6, "pnl_usd": 2.0, "state": "won"}, {"ts": "2026-05-01T09:23:00+00:00", "ticker": "KXHIGHSFO-26MAY02-T66", "city": "San Francisco", "target_date": "2026-05-02", "side": "yes", "price_cents": 47, "n_contracts": 3, "cost_usd": 1.41, "our_prob": 0.5617, "market_prob": 0.47, "edge": 0.0917, "status": "settled", "outcome": "no", "observed_high_f": 60.7, "pnl_usd": -1.41, "state": "lost"}], "open_trades": [{"ts": "2026-05-07T15:05:00+00:00", "ticker": "KXHIGHOKC-26MAY08-B73.5", "city": "Oklahoma City", "target_date": "2026-05-08", "side": "no", "price_cents": 57, "n_contracts": 4, "cost_usd": 2.28, "our_prob": 0.5533, "market_prob": 0.43, "edge": 0.1233, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.4303, "unrealized_pnl_usd": -0.0, "first_fill_ts": "2026-05-07T15:05:00+00:00"}, {"ts": "2026-05-07T11:26:00+00:00", "ticker": "KXHIGHNOLA-26MAY07-T80", "city": "New Orleans", "target_date": "2026-05-07", "side": "yes", "price_cents": 48, "n_contracts": 8, "cost_usd": 3.87, "our_prob": 0.7223, "market_prob": 0.48, "edge": 0.2423, "status": "placed", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.5062, "unrealized_pnl_usd": 0.13, "_n_fills": 2, "first_fill_ts": "2026-05-06T08:43:00+00:00"}, {"ts": "2026-05-07T10:08:00+00:00", "ticker": "KXHIGHSFO-26MAY08-T66", "city": "San Francisco", "target_date": "2026-05-08", "side": "no", "price_cents": 57, "n_contracts": 4, "cost_usd": 2.28, "our_prob": 0.8969, "market_prob": 0.43, "edge": 0.4669, "status": "placed", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.4313, "unrealized_pnl_usd": -0.01, "first_fill_ts": "2026-05-07T10:08:00+00:00"}, {"ts": "2026-05-07T09:47:00+00:00", "ticker": "KXHIGHPHX-26MAY07-B90.5", "city": "Phoenix", "target_date": "2026-05-07", "side": "no", "price_cents": 46, "n_contracts": 5, "cost_usd": 2.3, "our_prob": 0.7328, "market_prob": 0.54, "edge": 0.1928, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.5715, "unrealized_pnl_usd": -0.16, "first_fill_ts": "2026-05-07T09:47:00+00:00"}, {"ts": "2026-05-07T09:00:00+00:00", "ticker": "KXHIGHTSATX-26MAY07-B81.5", "city": "San Antonio", "target_date": "2026-05-07", "side": "no", "price_cents": 46, "n_contracts": 5, "cost_usd": 2.3, "our_prob": 0.6283, "market_prob": 0.54, "edge": 0.0883, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.4567, "unrealized_pnl_usd": 0.42, "first_fill_ts": "2026-05-07T09:00:00+00:00"}, {"ts": "2026-05-07T07:36:00+00:00", "ticker": "KXHIGHDC-26MAY08-B72.5", "city": "Washington", "target_date": "2026-05-08", "side": "yes", "price_cents": 59, "n_contracts": 5, "cost_usd": 2.95, "our_prob": 0.7787, "market_prob": 0.59, "edge": 0.1887, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.6866, "unrealized_pnl_usd": 0.48, "first_fill_ts": "2026-05-07T07:36:00+00:00"}, {"ts": "2026-05-07T07:03:00+00:00", "ticker": "KXHIGHTSATX-26MAY08-T84", "city": "San Antonio", "target_date": "2026-05-08", "side": "no", "price_cents": 62, "n_contracts": 2, "cost_usd": 1.24, "our_prob": 0.6678, "market_prob": 0.38, "edge": 0.2878, "status": "placed", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.3938, "unrealized_pnl_usd": -0.03, "first_fill_ts": "2026-05-07T07:03:00+00:00"}, {"ts": "2026-05-06T21:18:00+00:00", "ticker": "KXHIGHOKC-26MAY07-B78.5", "city": "Oklahoma City", "target_date": "2026-05-07", "side": "no", "price_cents": 46, "n_contracts": 5, "cost_usd": 2.3, "our_prob": 0.7001, "market_prob": 0.54, "edge": 0.1601, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.5338, "unrealized_pnl_usd": 0.03, "first_fill_ts": "2026-05-06T21:18:00+00:00"}, {"ts": "2026-05-06T20:52:00+00:00", "ticker": "KXHIGHATL-26MAY07-B77.5", "city": "Atlanta", "target_date": "2026-05-07", "side": "yes", "price_cents": 60, "n_contracts": 4, "cost_usd": 2.4, "our_prob": 0.8795, "market_prob": 0.6, "edge": 0.2795, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.6622, "unrealized_pnl_usd": 0.25, "first_fill_ts": "2026-05-06T20:52:00+00:00"}, {"ts": "2026-05-06T19:27:00+00:00", "ticker": "KXHIGHMIN-26MAY07-B64.5", "city": "Minneapolis", "target_date": "2026-05-07", "side": "yes", "price_cents": 52, "n_contracts": 2, "cost_usd": 1.04, "our_prob": 0.7344, "market_prob": 0.52, "edge": 0.2144, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.5555, "unrealized_pnl_usd": 0.07, "first_fill_ts": "2026-05-06T19:27:00+00:00"}, {"ts": "2026-05-06T18:55:00+00:00", "ticker": "KXHIGHSEA-26MAY07-B62.5", "city": "Seattle", "target_date": "2026-05-07", "side": "yes", "price_cents": 56, "n_contracts": 4, "cost_usd": 2.24, "our_prob": 0.5864, "market_prob": 0.56, "edge": 0.0264, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.6071, "unrealized_pnl_usd": 0.19, "first_fill_ts": "2026-05-06T18:55:00+00:00"}, {"ts": "2026-05-06T13:58:00+00:00", "ticker": "KXHIGHLV-26MAY07-B89.5", "city": "Las Vegas", "target_date": "2026-05-07", "side": "no", "price_cents": 53, "n_contracts": 2, "cost_usd": 1.06, "our_prob": 0.6308, "market_prob": 0.47, "edge": 0.1608, "status": "filled", "outcome": null, "observed_high_f": null, "pnl_usd": null, "state": "open", "current_yes_mid": 0.4098, "unrealized_pnl_usd": 0.12, "first_fill_ts": "2026-05-06T13:58:00+00:00"}], "resting_orders": {"ok": true, "orders": [], "n": 0, "redacted_in_demo": true}, "watch_list": {"ts": "2026-05-07T18:56:00+00:00", "candidates": [{"ticker": "KXHIGHMIA-26MAY08-T83", "city": "Miami", "side": "yes", "target_date": "2026-05-08", "our_prob": 0.6141, "market_prob": 0.4425, "edge": 0.1716, "is_locked": false, "yes_bid": 0.4225, "yes_ask": 0.4425, "kelly_contracts": 3, "kelly_cost_usd": 2.01, "placed_status": null, "prev_our_prob": 0.5644, "prev_market_prob": 0.4423, "prev_edge": 0.1221, "history": [{"ts": null, "our_prob": 0.6121, "market_prob": 0.4452, "edge": 0.1604}, {"ts": null, "our_prob": 0.5832, "market_prob": 0.4519, "edge": 0.1741}, {"ts": null, "our_prob": 0.6152, "market_prob": 0.4334, "edge": 0.1499}, {"ts": null, "our_prob": 0.5993, "market_prob": 0.4218, "edge": 0.1519}, {"ts": null, "our_prob": 0.6296, "market_prob": 0.4446, "edge": 0.1847}, {"ts": null, "our_prob": 0.6298, "market_prob": 0.4588, "edge": 0.2107}, {"ts": null, "our_prob": 0.6218, "market_prob": 0.4316, "edge": 0.1676}, {"ts": null, "our_prob": 0.6137, "market_prob": 0.4225, "edge": 0.1602}, {"ts": null, "our_prob": 0.6004, "market_prob": 0.4506, "edge": 0.1589}, {"ts": null, "our_prob": 0.6203, "market_prob": 0.4305, "edge": 0.1665}, {"ts": null, "our_prob": 0.599, "market_prob": 0.4354, "edge": 0.1514}, {"ts": null, "our_prob": 0.6353, "market_prob": 0.455, "edge": 0.1824}, {"ts": null, "our_prob": 0.6184, "market_prob": 0.4195, "edge": 0.171}, {"ts": null, "our_prob": 0.6095, "market_prob": 0.4481, "edge": 0.2164}, {"ts": null, "our_prob": 0.62, "market_prob": 0.4474, "edge": 0.1792}, {"ts": null, "our_prob": 0.6279, "market_prob": 0.4382, "edge": 0.2}, {"ts": null, "our_prob": 0.6088, "market_prob": 0.4382, "edge": 0.1851}, {"ts": null, "our_prob": 0.5971, "market_prob": 0.4677, "edge": 0.1609}, {"ts": null, "our_prob": 0.6053, "market_prob": 0.445, "edge": 0.1283}, {"ts": null, "our_prob": 0.6173, "market_prob": 0.4452, "edge": 0.1388}]}, {"ticker": "KXHIGHCHI-26MAY08-B66.5", "city": "Chicago", "side": "yes", "target_date": "2026-05-08", "our_prob": 0.5922, "market_prob": 0.4259, "edge": 0.1663, "is_locked": false, "yes_bid": 0.4059, "yes_ask": 0.4259, "kelly_contracts": 3, "kelly_cost_usd": 3.12, "placed_status": null, "prev_our_prob": 0.5959, "prev_market_prob": 0.4454, "prev_edge": 0.1505, "history": [{"ts": null, "our_prob": 0.5917, "market_prob": 0.3934, "edge": 0.1686}, {"ts": null, "our_prob": 0.5877, "market_prob": 0.41, "edge": 0.1781}, {"ts": null, "our_prob": 0.5962, "market_prob": 0.4416, "edge": 0.1671}, {"ts": null, "our_prob": 0.6166, "market_prob": 0.4171, "edge": 0.1194}, {"ts": null, "our_prob": 0.5923, "market_prob": 0.4259, "edge": 0.1659}, {"ts": null, "our_prob": 0.5605, "market_prob": 0.442, "edge": 0.1674}, {"ts": null, "our_prob": 0.569, "market_prob": 0.4085, "edge": 0.1895}, {"ts": null, "our_prob": 0.5764, "market_prob": 0.4261, "edge": 0.1582}, {"ts": null, "our_prob": 0.5861, "market_prob": 0.4134, "edge": 0.2191}, {"ts": null, "our_prob": 0.6033, "market_prob": 0.4214, "edge": 0.1625}, {"ts": null, "our_prob": 0.6198, "market_prob": 0.4332, "edge": 0.1885}, {"ts": null, "our_prob": 0.5778, "market_prob": 0.4057, "edge": 0.1886}, {"ts": null, "our_prob": 0.6093, "market_prob": 0.4194, "edge": 0.1547}, {"ts": null, "our_prob": 0.5828, "market_prob": 0.4186, "edge": 0.2005}, {"ts": null, "our_prob": 0.6161, "market_prob": 0.4282, "edge": 0.1898}, {"ts": null, "our_prob": 0.6025, "market_prob": 0.4085, "edge": 0.1556}, {"ts": null, "our_prob": 0.5888, "market_prob": 0.4237, "edge": 0.1518}, {"ts": null, "our_prob": 0.5765, "market_prob": 0.4071, "edge": 0.1447}, {"ts": null, "our_prob": 0.5646, "market_prob": 0.4217, "edge": 0.1765}, {"ts": null, "our_prob": 0.5471, "market_prob": 0.4246, "edge": 0.172}]}, {"ticker": "KXHIGHOKC-26MAY07-B76.5", "city": "Oklahoma City", "side": "yes", "target_date": "2026-05-07", "our_prob": 0.6718, "market_prob": 0.5179, "edge": 0.1539, "is_locked": false, "yes_bid": 0.4979, "yes_ask": 0.5179, "kelly_contracts": 3, "kelly_cost_usd": 4.41, "placed_status": null, "prev_our_prob": 0.6662, "prev_market_prob": 0.4969, "prev_edge": 0.1693, "history": [{"ts": null, "our_prob": 0.6766, "market_prob": 0.5334, "edge": 0.1341}, {"ts": null, "our_prob": 0.6725, "market_prob": 0.5206, "edge": 0.1804}, {"ts": null, "our_prob": 0.6786, "market_prob": 0.5206, "edge": 0.1777}, {"ts": null, "our_prob": 0.69, "market_prob": 0.508, "edge": 0.1527}, {"ts": null, "our_prob": 0.667, "market_prob": 0.525, "edge": 0.1298}, {"ts": null, "our_prob": 0.6445, "market_prob": 0.5076, "edge": 0.1563}, {"ts": null, "our_prob": 0.652, "market_prob": 0.4898, "edge": 0.1312}, {"ts": null, "our_prob": 0.6635, "market_prob": 0.5063, "edge": 0.127}, {"ts": null, "our_prob": 0.6809, "market_prob": 0.5269, "edge": 0.1289}, {"ts": null, "our_prob": 0.632, "market_prob": 0.5237, "edge": 0.1398}, {"ts": null, "our_prob": 0.6434, "market_prob": 0.506, "edge": 0.1395}, {"ts": null, "our_prob": 0.6733, "market_prob": 0.5266, "edge": 0.1392}, {"ts": null, "our_prob": 0.6729, "market_prob": 0.5184, "edge": 0.1731}, {"ts": null, "our_prob": 0.6505, "market_prob": 0.5356, "edge": 0.1294}, {"ts": null, "our_prob": 0.6724, "market_prob": 0.5248, "edge": 0.1793}, {"ts": null, "our_prob": 0.6839, "market_prob": 0.5261, "edge": 0.1383}, {"ts": null, "our_prob": 0.6771, "market_prob": 0.5361, "edge": 0.1512}, {"ts": null, "our_prob": 0.6981, "market_prob": 0.536, "edge": 0.1526}, {"ts": null, "our_prob": 0.6563, "market_prob": 0.53, "edge": 0.1352}, {"ts": null, "our_prob": 0.6849, "market_prob": 0.5219, "edge": 0.1542}]}, {"ticker": "KXHIGHMIN-26MAY08-T62", "city": "Minneapolis", "side": "no", "target_date": "2026-05-08", "our_prob": 0.658, "market_prob": 0.509, "edge": 0.149, "is_locked": false, "yes_bid": 0.471, "yes_ask": 0.511, "kelly_contracts": 3, "kelly_cost_usd": 2.23, "placed_status": null, "prev_our_prob": 0.6637, "prev_market_prob": 0.5087, "prev_edge": 0.155, "history": [{"ts": null, "our_prob": 0.6961, "market_prob": 0.5045, "edge": 0.1279}, {"ts": null, "our_prob": 0.6583, "market_prob": 0.5099, "edge": 0.1339}, {"ts": null, "our_prob": 0.6297, "market_prob": 0.5071, "edge": 0.1287}, {"ts": null, "our_prob": 0.6419, "market_prob": 0.5124, "edge": 0.1793}, {"ts": null, "our_prob": 0.6358, "market_prob": 0.4884, "edge": 0.1574}, {"ts": null, "our_prob": 0.6449, "market_prob": 0.4801, "edge": 0.1539}, {"ts": null, "our_prob": 0.6334, "market_prob": 0.527, "edge": 0.1432}, {"ts": null, "our_prob": 0.6413, "market_prob": 0.5432, "edge": 0.1413}, {"ts": null, "our_prob": 0.6715, "market_prob": 0.5196, "edge": 0.161}, {"ts": null, "our_prob": 0.6774, "market_prob": 0.5089, "edge": 0.1091}, {"ts": null, "our_prob": 0.6712, "market_prob": 0.5236, "edge": 0.152}, {"ts": null, "our_prob": 0.6689, "market_prob": 0.5238, "edge": 0.1705}, {"ts": null, "our_prob": 0.67, "market_prob": 0.5292, "edge": 0.137}, {"ts": null, "our_prob": 0.6389, "market_prob": 0.5064, "edge": 0.1579}, {"ts": null, "our_prob": 0.6534, "market_prob": 0.519, "edge": 0.1532}, {"ts": null, "our_prob": 0.6645, "market_prob": 0.5215, "edge": 0.1676}, {"ts": null, "our_prob": 0.6332, "market_prob": 0.4968, "edge": 0.1581}, {"ts": null, "our_prob": 0.6557, "market_prob": 0.491, "edge": 0.1339}, {"ts": null, "our_prob": 0.6381, "market_prob": 0.5138, "edge": 0.1789}, {"ts": null, "our_prob": 0.6187, "market_prob": 0.497, "edge": 0.1582}]}, {"ticker": "KXHIGHHOU-26MAY08-T83", "city": "Houston", "side": "yes", "target_date": "2026-05-08", "our_prob": 0.8785, "market_prob": 0.7405, "edge": 0.138, "is_locked": false, "yes_bid": 0.7205, "yes_ask": 0.7405, "kelly_contracts": 3, "kelly_cost_usd": 1.91, "placed_status": null, "prev_our_prob": 0.8947, "prev_market_prob": 0.716, "prev_edge": 0.1787, "history": [{"ts": null, "our_prob": 0.8797, "market_prob": 0.766, "edge": 0.1258}, {"ts": null, "our_prob": 0.8553, "market_prob": 0.7339, "edge": 0.1344}, {"ts": null, "our_prob": 0.8989, "market_prob": 0.7155, "edge": 0.1517}, {"ts": null, "our_prob": 0.891, "market_prob": 0.7518, "edge": 0.1285}, {"ts": null, "our_prob": 0.909, "market_prob": 0.7393, "edge": 0.1483}, {"ts": null, "our_prob": 0.8495, "market_prob": 0.7323, "edge": 0.1365}, {"ts": null, "our_prob": 0.8823, "market_prob": 0.7225, "edge": 0.132}, {"ts": null, "our_prob": 0.8418, "market_prob": 0.7386, "edge": 0.1806}, {"ts": null, "our_prob": 0.8798, "market_prob": 0.7696, "edge": 0.1467}, {"ts": null, "our_prob": 0.9073, "market_prob": 0.7361, "edge": 0.1435}, {"ts": null, "our_prob": 0.8694, "market_prob": 0.7385, "edge": 0.1597}, {"ts": null, "our_prob": 0.8868, "market_prob": 0.7104, "edge": 0.1118}, {"ts": null, "our_prob": 0.853, "market_prob": 0.7487, "edge": 0.1592}, {"ts": null, "our_prob": 0.8784, "market_prob": 0.7486, "edge": 0.1117}, {"ts": null, "our_prob": 0.8752, "market_prob": 0.7361, "edge": 0.1459}, {"ts": null, "our_prob": 0.8914, "market_prob": 0.731, "edge": 0.097}, {"ts": null, "our_prob": 0.8622, "market_prob": 0.7543, "edge": 0.1294}, {"ts": null, "our_prob": 0.8938, "market_prob": 0.7447, "edge": 0.1416}, {"ts": null, "our_prob": 0.9014, "market_prob": 0.7737, "edge": 0.1465}, {"ts": null, "our_prob": 0.8815, "market_prob": 0.7686, "edge": 0.122}]}, {"ticker": "KXHIGHDAL-26MAY08-B81.5", "city": "Dallas", "side": "yes", "target_date": "2026-05-08", "our_prob": 0.877, "market_prob": 0.7421, "edge": 0.1349, "is_locked": false, "yes_bid": 0.7221, "yes_ask": 0.7421, "kelly_contracts": 2, "kelly_cost_usd": 1.78, "placed_status": null, "prev_our_prob": 0.8684, "prev_market_prob": 0.7442, "prev_edge": 0.1242, "history": [{"ts": null, "our_prob": 0.8717, "market_prob": 0.7344, "edge": 0.1152}, {"ts": null, "our_prob": 0.8518, "market_prob": 0.7547, "edge": 0.0898}, {"ts": null, "our_prob": 0.8709, "market_prob": 0.7387, "edge": 0.1258}, {"ts": null, "our_prob": 0.9079, "market_prob": 0.7649, "edge": 0.1674}, {"ts": null, "our_prob": 0.8807, "market_prob": 0.744, "edge": 0.1483}, {"ts": null, "our_prob": 0.8757, "market_prob": 0.7293, "edge": 0.1678}, {"ts": null, "our_prob": 0.8613, "market_prob": 0.7487, "edge": 0.1572}, {"ts": null, "our_prob": 0.8517, "market_prob": 0.7546, "edge": 0.1208}, {"ts": null, "our_prob": 0.8785, "market_prob": 0.7463, "edge": 0.1562}, {"ts": null, "our_prob": 0.891, "market_prob": 0.7111, "edge": 0.1229}, {"ts": null, "our_prob": 0.8704, "market_prob": 0.7131, "edge": 0.1447}, {"ts": null, "our_prob": 0.8707, "market_prob": 0.7471, "edge": 0.1253}, {"ts": null, "our_prob": 0.8727, "market_prob": 0.74, "edge": 0.1682}, {"ts": null, "our_prob": 0.8795, "market_prob": 0.7321, "edge": 0.1735}, {"ts": null, "our_prob": 0.8892, "market_prob": 0.7579, "edge": 0.1438}, {"ts": null, "our_prob": 0.9207, "market_prob": 0.7411, "edge": 0.1683}, {"ts": null, "our_prob": 0.829, "market_prob": 0.7252, "edge": 0.1052}, {"ts": null, "our_prob": 0.877, "market_prob": 0.6977, "edge": 0.1467}, {"ts": null, "our_prob": 0.8933, "market_prob": 0.7427, "edge": 0.1111}, {"ts": null, "our_prob": 0.8561, "market_prob": 0.7477, "edge": 0.1497}]}, {"ticker": "KXHIGHPHX-26MAY07-T90", "city": "Phoenix", "side": "yes", "target_date": "2026-05-07", "our_prob": 0.5849, "market_prob": 0.4793, "edge": 0.1056, "is_locked": false, "yes_bid": 0.4593, "yes_ask": 0.4793, "kelly_contracts": 4, "kelly_cost_usd": 3.33, "placed_status": null, "prev_our_prob": 0.5975, "prev_market_prob": 0.4671, "prev_edge": 0.1304, "history": [{"ts": null, "our_prob": 0.5712, "market_prob": 0.4756, "edge": 0.1018}, {"ts": null, "our_prob": 0.6147, "market_prob": 0.495, "edge": 0.1093}, {"ts": null, "our_prob": 0.5505, "market_prob": 0.5031, "edge": 0.1094}, {"ts": null, "our_prob": 0.602, "market_prob": 0.4862, "edge": 0.1188}, {"ts": null, "our_prob": 0.5972, "market_prob": 0.454, "edge": 0.1581}, {"ts": null, "our_prob": 0.591, "market_prob": 0.4725, "edge": 0.1029}, {"ts": null, "our_prob": 0.5991, "market_prob": 0.4869, "edge": 0.0896}, {"ts": null, "our_prob": 0.6253, "market_prob": 0.5134, "edge": 0.1022}, {"ts": null, "our_prob": 0.5981, "market_prob": 0.4932, "edge": 0.0887}, {"ts": null, "our_prob": 0.6141, "market_prob": 0.4806, "edge": 0.1592}, {"ts": null, "our_prob": 0.5736, "market_prob": 0.4543, "edge": 0.1109}, {"ts": null, "our_prob": 0.5913, "market_prob": 0.4897, "edge": 0.0869}, {"ts": null, "our_prob": 0.5532, "market_prob": 0.4965, "edge": 0.1105}, {"ts": null, "our_prob": 0.5811, "market_prob": 0.4799, "edge": 0.1082}, {"ts": null, "our_prob": 0.6322, "market_prob": 0.5024, "edge": 0.0887}, {"ts": null, "our_prob": 0.5947, "market_prob": 0.4896, "edge": 0.0957}, {"ts": null, "our_prob": 0.5412, "market_prob": 0.5109, "edge": 0.1077}, {"ts": null, "our_prob": 0.6136, "market_prob": 0.4798, "edge": 0.1259}, {"ts": null, "our_prob": 0.5919, "market_prob": 0.4462, "edge": 0.1015}, {"ts": null, "our_prob": 0.5892, "market_prob": 0.492, "edge": 0.0933}]}, {"ticker": "KXHIGHLV-26MAY08-B87.5", "city": "Las Vegas", "side": "no", "target_date": "2026-05-08", "our_prob": 0.6554, "market_prob": 0.5569, "edge": 0.0985, "is_locked": false, "yes_bid": 0.4231, "yes_ask": 0.4631, "kelly_contracts": 2, "kelly_cost_usd": 2.87, "placed_status": null, "prev_our_prob": 0.6456, "prev_market_prob": 0.5862, "prev_edge": 0.0594, "history": [{"ts": null, "our_prob": 0.6752, "market_prob": 0.5427, "edge": 0.0836}, {"ts": null, "our_prob": 0.6678, "market_prob": 0.5232, "edge": 0.089}, {"ts": null, "our_prob": 0.6824, "market_prob": 0.5605, "edge": 0.1078}, {"ts": null, "our_prob": 0.647, "market_prob": 0.5638, "edge": 0.1168}, {"ts": null, "our_prob": 0.6528, "market_prob": 0.5604, "edge": 0.0853}, {"ts": null, "our_prob": 0.6476, "market_prob": 0.5473, "edge": 0.0898}, {"ts": null, "our_prob": 0.6658, "market_prob": 0.5491, "edge": 0.0743}, {"ts": null, "our_prob": 0.6751, "market_prob": 0.5673, "edge": 0.1367}, {"ts": null, "our_prob": 0.6701, "market_prob": 0.5748, "edge": 0.1241}, {"ts": null, "our_prob": 0.6917, "market_prob": 0.5494, "edge": 0.1003}, {"ts": null, "our_prob": 0.672, "market_prob": 0.5725, "edge": 0.0972}, {"ts": null, "our_prob": 0.6437, "market_prob": 0.5632, "edge": 0.0988}, {"ts": null, "our_prob": 0.6175, "market_prob": 0.5687, "edge": 0.1332}, {"ts": null, "our_prob": 0.6655, "market_prob": 0.532, "edge": 0.0634}, {"ts": null, "our_prob": 0.6368, "market_prob": 0.5524, "edge": 0.083}, {"ts": null, "our_prob": 0.6449, "market_prob": 0.5673, "edge": 0.1043}, {"ts": null, "our_prob": 0.6021, "market_prob": 0.5247, "edge": 0.1018}, {"ts": null, "our_prob": 0.6543, "market_prob": 0.5618, "edge": 0.0791}, {"ts": null, "our_prob": 0.6686, "market_prob": 0.533, "edge": 0.1502}, {"ts": null, "our_prob": 0.639, "market_prob": 0.539, "edge": 0.0963}]}, {"ticker": "KXHIGHDC-26MAY07-B72.5", "city": "Washington", "side": "no", "target_date": "2026-05-07", "our_prob": 0.6414, "market_prob": 0.5437, "edge": 0.0977, "is_locked": false, "yes_bid": 0.4363, "yes_ask": 0.4763, "kelly_contracts": 4, "kelly_cost_usd": 2.42, "placed_status": null, "prev_our_prob": 0.6471, "prev_market_prob": 0.5266, "prev_edge": 0.1205, "history": [{"ts": null, "our_prob": 0.6655, "market_prob": 0.5559, "edge": 0.0671}, {"ts": null, "our_prob": 0.6231, "market_prob": 0.5413, "edge": 0.0712}, {"ts": null, "our_prob": 0.6525, "market_prob": 0.552, "edge": 0.094}, {"ts": null, "our_prob": 0.6775, "market_prob": 0.5576, "edge": 0.1312}, {"ts": null, "our_prob": 0.6526, "market_prob": 0.5432, "edge": 0.0949}, {"ts": null, "our_prob": 0.6517, "market_prob": 0.5433, "edge": 0.1122}, {"ts": null, "our_prob": 0.688, "market_prob": 0.5419, "edge": 0.0717}, {"ts": null, "our_prob": 0.6348, "market_prob": 0.5582, "edge": 0.1091}, {"ts": null, "our_prob": 0.6305, "market_prob": 0.5669, "edge": 0.105}, {"ts": null, "our_prob": 0.6436, "market_prob": 0.5699, "edge": 0.1032}, {"ts": null, "our_prob": 0.6357, "market_prob": 0.5585, "edge": 0.0892}, {"ts": null, "our_prob": 0.6302, "market_prob": 0.5052, "edge": 0.1008}, {"ts": null, "our_prob": 0.6218, "market_prob": 0.5467, "edge": 0.1434}, {"ts": null, "our_prob": 0.6205, "market_prob": 0.5377, "edge": 0.0815}, {"ts": null, "our_prob": 0.5953, "market_prob": 0.5558, "edge": 0.1011}, {"ts": null, "our_prob": 0.6205, "market_prob": 0.5326, "edge": 0.1289}, {"ts": null, "our_prob": 0.6525, "market_prob": 0.5411, "edge": 0.0905}, {"ts": null, "our_prob": 0.6178, "market_prob": 0.524, "edge": 0.1261}, {"ts": null, "our_prob": 0.6602, "market_prob": 0.5646, "edge": 0.089}, {"ts": null, "our_prob": 0.685, "market_prob": 0.5758, "edge": 0.0797}]}, {"ticker": "KXHIGHDAL-26MAY08-B79.5", "city": "Dallas", "side": "no", "target_date": "2026-05-08", "our_prob": 0.5903, "market_prob": 0.5272, "edge": 0.0631, "is_locked": false, "yes_bid": 0.4528, "yes_ask": 0.4928, "kelly_contracts": 3, "kelly_cost_usd": 1.82, "placed_status": null, "prev_our_prob": 0.5996, "prev_market_prob": 0.5483, "prev_edge": 0.0513, "history": [{"ts": null, "our_prob": 0.6033, "market_prob": 0.5216, "edge": 0.0778}, {"ts": null, "our_prob": 0.5773, "market_prob": 0.5158, "edge": 0.0653}, {"ts": null, "our_prob": 0.5726, "market_prob": 0.5026, "edge": 0.0522}, {"ts": null, "our_prob": 0.5878, "market_prob": 0.5549, "edge": 0.0766}, {"ts": null, "our_prob": 0.567, "market_prob": 0.5171, "edge": 0.0482}, {"ts": null, "our_prob": 0.5985, "market_prob": 0.5296, "edge": 0.0886}, {"ts": null, "our_prob": 0.6115, "market_prob": 0.5263, "edge": 0.0641}, {"ts": null, "our_prob": 0.5907, "market_prob": 0.496, "edge": 0.0427}, {"ts": null, "our_prob": 0.5739, "market_prob": 0.5134, "edge": 0.0581}, {"ts": null, "our_prob": 0.6069, "market_prob": 0.5226, "edge": 0.0648}, {"ts": null, "our_prob": 0.5838, "market_prob": 0.5187, "edge": 0.0402}, {"ts": null, "our_prob": 0.6024, "market_prob": 0.5349, "edge": 0.0646}, {"ts": null, "our_prob": 0.5813, "market_prob": 0.5399, "edge": 0.0328}, {"ts": null, "our_prob": 0.5665, "market_prob": 0.5315, "edge": 0.041}, {"ts": null, "our_prob": 0.5989, "market_prob": 0.5268, "edge": 0.0773}, {"ts": null, "our_prob": 0.5669, "market_prob": 0.5275, "edge": 0.0581}, {"ts": null, "our_prob": 0.5816, "market_prob": 0.5339, "edge": 0.062}, {"ts": null, "our_prob": 0.5783, "market_prob": 0.5119, "edge": 0.0669}, {"ts": null, "our_prob": 0.5877, "market_prob": 0.5388, "edge": 0.0584}, {"ts": null, "our_prob": 0.5839, "market_prob": 0.5572, "edge": 0.0346}]}, {"ticker": "KXHIGHNOLA-26MAY08-T79", "city": "New Orleans", "side": "yes", "target_date": "2026-05-08", "our_prob": 0.6535, "market_prob": 0.5928, "edge": 0.0607, "is_locked": false, "yes_bid": 0.5728, "yes_ask": 0.5928, "kelly_contracts": 3, "kelly_cost_usd": 3.64, "placed_status": null, "prev_our_prob": 0.6733, "prev_market_prob": 0.5766, "prev_edge": 0.0967, "history": [{"ts": null, "our_prob": 0.6607, "market_prob": 0.5886, "edge": 0.0477}, {"ts": null, "our_prob": 0.6532, "market_prob": 0.6074, "edge": 0.0707}, {"ts": null, "our_prob": 0.6736, "market_prob": 0.5807, "edge": 0.0517}, {"ts": null, "our_prob": 0.675, "market_prob": 0.5874, "edge": 0.0416}, {"ts": null, "our_prob": 0.637, "market_prob": 0.5985, "edge": 0.0586}, {"ts": null, "our_prob": 0.6735, "market_prob": 0.5762, "edge": 0.0823}, {"ts": null, "our_prob": 0.6392, "market_prob": 0.5917, "edge": 0.0524}, {"ts": null, "our_prob": 0.6671, "market_prob": 0.5776, "edge": 0.053}, {"ts": null, "our_prob": 0.626, "market_prob": 0.6058, "edge": 0.0409}, {"ts": null, "our_prob": 0.6251, "market_prob": 0.5808, "edge": 0.0572}, {"ts": null, "our_prob": 0.6673, "market_prob": 0.5937, "edge": 0.0691}, {"ts": null, "our_prob": 0.6131, "market_prob": 0.594, "edge": 0.07}, {"ts": null, "our_prob": 0.6481, "market_prob": 0.6002, "edge": 0.0648}, {"ts": null, "our_prob": 0.6618, "market_prob": 0.61, "edge": 0.0319}, {"ts": null, "our_prob": 0.6471, "market_prob": 0.608, "edge": 0.0652}, {"ts": null, "our_prob": 0.6549, "market_prob": 0.6093, "edge": 0.0518}, {"ts": null, "our_prob": 0.6398, "market_prob": 0.5849, "edge": 0.0801}, {"ts": null, "our_prob": 0.6418, "market_prob": 0.6187, "edge": 0.0491}, {"ts": null, "our_prob": 0.6708, "market_prob": 0.5708, "edge": 0.0517}, {"ts": null, "our_prob": 0.6399, "market_prob": 0.5993, "edge": 0.0875}]}], "age_seconds": 11467.3, "from_cache": true, "ok": true, "n": 11}, "mos_forecasts": [], "cli_observations": [], "skip_summary": {"by_reason": {}, "total": 0, "window_hours": 6, "redacted_in_demo": true}, "recent_arbs": [], "cumulative_pnl_series": [{"settle_ts": "2026-04-03", "n_trades": 2, "wins": 1, "win_rate_pct": 50.0, "pnl_usd": -1.93, "cumulative_usd": -1.93}, {"settle_ts": "2026-04-06", "n_trades": 1, "wins": 0, "win_rate_pct": 0.0, "pnl_usd": -1.59, "cumulative_usd": -3.52}, {"settle_ts": "2026-04-07", "n_trades": 1, "wins": 1, "win_rate_pct": 100.0, "pnl_usd": 2.5, "cumulative_usd": -1.02}, {"settle_ts": "2026-04-08", "n_trades": 2, "wins": 1, "win_rate_pct": 50.0, "pnl_usd": -1.14, "cumulative_usd": -2.16}, {"settle_ts": "2026-04-09", "n_trades": 3, "wins": 2, "win_rate_pct": 66.7, "pnl_usd": 1.48, "cumulative_usd": -0.68}, {"settle_ts": "2026-04-11", "n_trades": 1, "wins": 1, "win_rate_pct": 100.0, "pnl_usd": 2.45, "cumulative_usd": 1.77}, {"settle_ts": "2026-04-12", "n_trades": 2, "wins": 1, "win_rate_pct": 50.0, "pnl_usd": 1.05, "cumulative_usd": 2.82}, {"settle_ts": "2026-04-13", "n_trades": 1, "wins": 1, "win_rate_pct": 100.0, "pnl_usd": 1.9, "cumulative_usd": 4.72}, {"settle_ts": "2026-04-14", "n_trades": 2, "wins": 2, "win_rate_pct": 100.0, "pnl_usd": 3.12, "cumulative_usd": 7.84}, {"settle_ts": "2026-04-15", "n_trades": 1, "wins": 1, "win_rate_pct": 100.0, "pnl_usd": 0.45, "cumulative_usd": 8.29}, {"settle_ts": "2026-04-16", "n_trades": 2, "wins": 2, "win_rate_pct": 100.0, "pnl_usd": 2.55, "cumulative_usd": 10.84}, {"settle_ts": "2026-04-17", "n_trades": 2, "wins": 1, "win_rate_pct": 50.0, "pnl_usd": -1.41, "cumulative_usd": 9.43}, {"settle_ts": "2026-04-18", "n_trades": 3, "wins": 2, "win_rate_pct": 66.7, "pnl_usd": 3.41, "cumulative_usd": 12.84}, {"settle_ts": "2026-04-19", "n_trades": 1, "wins": 1, "win_rate_pct": 100.0, "pnl_usd": 1.84, "cumulative_usd": 14.68}, {"settle_ts": "2026-04-20", "n_trades": 6, "wins": 4, "win_rate_pct": 66.7, "pnl_usd": 2.0, "cumulative_usd": 16.68}, {"settle_ts": "2026-04-21", "n_trades": 5, "wins": 3, "win_rate_pct": 60.0, "pnl_usd": 0.72, "cumulative_usd": 17.4}, {"settle_ts": "2026-04-22", "n_trades": 7, "wins": 5, "win_rate_pct": 71.4, "pnl_usd": 3.9, "cumulative_usd": 21.3}, {"settle_ts": "2026-04-23", "n_trades": 8, "wins": 4, "win_rate_pct": 50.0, "pnl_usd": -2.34, "cumulative_usd": 18.96}, {"settle_ts": "2026-04-24", "n_trades": 7, "wins": 6, "win_rate_pct": 85.7, "pnl_usd": 7.13, "cumulative_usd": 26.09}, {"settle_ts": "2026-04-25", "n_trades": 4, "wins": 2, "win_rate_pct": 50.0, "pnl_usd": 0.08, "cumulative_usd": 26.17}, {"settle_ts": "2026-04-26", "n_trades": 8, "wins": 7, "win_rate_pct": 87.5, "pnl_usd": 7.13, "cumulative_usd": 33.3}, {"settle_ts": "2026-04-27", "n_trades": 4, "wins": 4, "win_rate_pct": 100.0, "pnl_usd": 5.27, "cumulative_usd": 38.57}, {"settle_ts": "2026-04-28", "n_trades": 6, "wins": 4, "win_rate_pct": 66.7, "pnl_usd": 1.52, "cumulative_usd": 40.09}, {"settle_ts": "2026-04-29", "n_trades": 5, "wins": 1, "win_rate_pct": 20.0, "pnl_usd": -6.04, "cumulative_usd": 34.05}, {"settle_ts": "2026-04-30", "n_trades": 4, "wins": 2, "win_rate_pct": 50.0, "pnl_usd": -1.8, "cumulative_usd": 32.25}, {"settle_ts": "2026-05-01", "n_trades": 6, "wins": 4, "win_rate_pct": 66.7, "pnl_usd": 1.72, "cumulative_usd": 33.97}, {"settle_ts": "2026-05-02", "n_trades": 8, "wins": 6, "win_rate_pct": 75.0, "pnl_usd": 5.28, "cumulative_usd": 39.25}, {"settle_ts": "2026-05-03", "n_trades": 9, "wins": 4, "win_rate_pct": 44.4, "pnl_usd": -3.08, "cumulative_usd": 36.17}, {"settle_ts": "2026-05-04", "n_trades": 11, "wins": 8, "win_rate_pct": 72.7, "pnl_usd": 1.12, "cumulative_usd": 37.29}, {"settle_ts": "2026-05-05", "n_trades": 11, "wins": 6, "win_rate_pct": 54.5, "pnl_usd": 0.06, "cumulative_usd": 37.35}, {"settle_ts": "2026-05-06", "n_trades": 11, "wins": 9, "win_rate_pct": 81.8, "pnl_usd": 8.52, "cumulative_usd": 45.87}, {"settle_ts": "2026-05-07", "n_trades": 8, "wins": 7, "win_rate_pct": 87.5, "pnl_usd": 10.17, "cumulative_usd": 56.04}], "calibration": {"buckets": [], "n_total": 0, "redacted_in_demo": true}, "roadmap": {"items": [], "counts": {"shipped": 0, "next": 0, "later": 0}, "pdf_mtime": 0, "redacted_in_demo": true}, "bot_health": {"redacted_in_demo": true}, "brier_drift": {"cells": [], "window": 0, "min_samples": 0, "warn_delta": 0, "stale_threshold": 0, "redacted_in_demo": true}, "about_html": "<details class=\"card about-card\" data-section-id=\"about\" open>\n  <summary class=\"about-summary\"><strong>What is GEO?</strong></summary>\n  <div class=\"about-body\">\n    <p class=\"about-lead\">\n      <strong>GEO</strong> is a live algorithmic trading system for\n      <a href=\"https://kalshi.com\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"footer-link\">Kalshi</a>\n      weather prediction markets &mdash; a CFTC-regulated event-prediction\n      exchange.\n    </p>\n    <p>\n      <strong>What you're looking at:</strong> a public, read-only snapshot\n      of GEO's dashboard with <strong>fully synthetic data</strong>. The live\n      system runs privately against real Kalshi markets. The Refresh and\n      Click-to-Trade buttons are disabled here. Source code is private.\n    </p>\n    <p class=\"muted\" style=\"font-size: 12px;\">\n      Sections marked &ldquo;redacted in demo&rdquo; below exist in the live\n      dashboard but their contents (per-model diagnostics, structural-arb\n      detector, resting maker orders, calibration curve, roadmap) reveal the\n      bot&rsquo;s competitive setup and are intentionally absent from the\n      public preview.\n    </p>\n  </div>\n</details>"};
+
+// Demo mode: intercept any fetch() to /api/* so the page doesn't spam
+// 404s on a static host. Returns a benign JSON response with demo:true
+// so the existing polling code paths short-circuit without exceptions.
+if (DATA && DATA.demo_mode) {
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const url = (typeof input === "string") ? input : (input && input.url) || "";
+    if (url.indexOf("/api/") === 0) {
+      const body = JSON.stringify({ok: false, demo: true,
+                                    error: "API disabled in demo"});
+      return Promise.resolve(new Response(body, {
+        status: 200,
+        headers: {"Content-Type": "application/json"},
+      }));
+    }
+    return _origFetch(input, init);
+  };
+}
+
+const fmtUSD = (n, sign=false) => {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  const s = (n >= 0 ? "$" : "-$") + Math.abs(n).toFixed(2);
+  return sign && n > 0 ? "+" + s : s;
+};
+const fmtPct = (n) => (n === null || n === undefined || Number.isNaN(n)) ? "—" : (n * 100).toFixed(1) + "%";
+const escapeHtml = (s) => s == null ? "" : String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const pnlClass = (n) => n === null || n === undefined ? "neutral" : (n > 0 ? "pos" : (n < 0 ? "neg" : "neutral"));
+
+// Refresh-watch-list handler. Wired to the ↻ Refresh button next to
+// the "Watch List" title. POSTs to /api/refresh_watch_list
+// which spawns dashboard/_refresh_watch_list.py — a ~60s scan that
+// rewrites .watch_list_cache.json. We then poll /api/watch_list_meta
+// every 3 seconds and reload the page once the cache mtime moves
+// (= scan finished writing). Hard timeout at 180s to avoid infinite
+// polling if the scan crashes.
+async function refreshWatchList(btn) {
+  const status = document.getElementById("wlRefreshStatus");
+  const setStatus = (msg, kind) => {
+    if (!status) return;
+    status.className = "wl-refresh-status" + (kind ? " " + kind : "");
+    status.textContent = msg;
+  };
+
+  // Capture the baseline mtime BEFORE kicking off the scan so we can
+  // tell unambiguously when a new cache file appears. Done before the
+  // POST so a network blip doesn't lose the baseline.
+  let baselineMtime = null;
+  try {
+    const m = await fetch("/api/watch_list_meta", {cache: "no-store"}).then(r => r.json());
+    baselineMtime = m.mtime || 0;
+  } catch (e) {
+    baselineMtime = 0;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "↻ Scanning…";
+  setStatus("Posting refresh request…");
+
+  // Kick off the scan
+  let postOk = false;
+  try {
+    const resp = await fetch("/api/refresh_watch_list", {method: "POST"});
+    const data = await resp.json().catch(() => ({}));
+    if (resp.status === 202 && data.ok) {
+      postOk = true;
+      setStatus("Scanning markets — ~60s…");
+    } else if (resp.status === 409) {
+      setStatus("✗ " + (data.error || "Already running"), "error");
+      btn.disabled = false;
+      btn.textContent = "↻ Refresh";
+      return;
+    } else {
+      setStatus("✗ " + (data.error || ("HTTP " + resp.status)), "error");
+      btn.disabled = false;
+      btn.textContent = "↻ Refresh";
+      return;
+    }
+  } catch (e) {
+    setStatus("✗ network error: " + (e && e.message ? e.message : e), "error");
+    btn.disabled = false;
+    btn.textContent = "↻ Refresh";
+    return;
+  }
+  if (!postOk) return;
+
+  // Poll the meta endpoint until the cache mtime moves OR we time out.
+  const pollIntervalMs = 3000;
+  const timeoutMs = 180000; // 3 min — generous; scans normally take ~60s
+  const startedAt = Date.now();
+  const tick = async () => {
+    const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+    try {
+      const m = await fetch("/api/watch_list_meta", {cache: "no-store"}).then(r => r.json());
+      if (m.ok && m.mtime && m.mtime !== baselineMtime) {
+        // New cache written — reload the dashboard so the user sees the
+        // fresh candidates. The dashboard server re-renders on every
+        // GET, so a vanilla reload picks up the change.
+        setStatus("✓ Scan complete — reloading…", "ok");
+        // Tiny delay so the user actually sees the success message.
+        setTimeout(() => window.location.reload(), 400);
+        return;
+      }
+      const inFlight = m && m.refresh_in_flight;
+      if (!inFlight && elapsedSec > 5) {
+        // Scan exited (PID gone) but mtime didn't move. That means the
+        // refresh script crashed before writing the cache. Surface this
+        // instead of polling forever.
+        setStatus("✗ Scan exited without writing cache. Check log.", "error");
+        btn.disabled = false;
+        btn.textContent = "↻ Refresh";
+        return;
+      }
+      setStatus("Scanning markets — " + elapsedSec + "s elapsed…");
+    } catch (e) {
+      // Transient — keep polling unless we've blown the timeout.
+    }
+    if (Date.now() - startedAt > timeoutMs) {
+      setStatus("⚠ Refresh timed out (180s). The scan may still be running — try reloading manually.", "error");
+      btn.disabled = false;
+      btn.textContent = "↻ Refresh";
+      return;
+    }
+    setTimeout(tick, pollIntervalMs);
+  };
+  setTimeout(tick, pollIntervalMs);
+}
+
+// Background fill-marker poller. Runs continuously while the dashboard
+// is open. main.py's _watch_and_requote touches dashboard/.last_fill.marker
+// the moment a bot-placed maker order disappears from open_orders
+// (= filled or cancelled externally on Kalshi's side). We capture the
+// marker mtime at page load, poll /api/fill_meta every 10s while the
+// tab is visible, and call location.reload() when the mtime moves so
+// the user sees their new fill on the dashboard automatically — no
+// manual refresh after a Telegram approval.
+//
+// Pauses on visibilitychange→hidden to avoid wasted work and resumes
+// on visible. Independent of the watch_list refresh poller; they don't
+// share state.
+(function startFillMarkerPoller() {
+  let baselineMtime = null;
+  let timer = null;
+  const POLL_MS = 10000;
+
+  async function captureBaseline() {
+    try {
+      const r = await fetch("/api/fill_meta", {cache: "no-store"});
+      const j = await r.json();
+      if (j && j.ok) baselineMtime = j.mtime || 0;
+    } catch (e) {
+      baselineMtime = 0; // Treat network error as "no baseline yet"; next tick will retry.
+    }
+  }
+
+  async function tick() {
+    if (document.visibilityState !== "visible") return;
+    try {
+      const r = await fetch("/api/fill_meta", {cache: "no-store"});
+      const j = await r.json();
+      if (!j || !j.ok) return;
+      // First successful response after a missing-baseline state — adopt it.
+      if (baselineMtime === null || baselineMtime === 0) {
+        baselineMtime = j.mtime || 0;
+        return;
+      }
+      if (j.mtime && j.mtime !== baselineMtime) {
+        // A fill landed on Kalshi since we last loaded the page. Reload
+        // so the positions / P&L / watch-list panels reflect the new
+        // state. The dashboard server re-renders on every GET, so a
+        // vanilla reload pulls fresh data.
+        window.location.reload();
+      }
+    } catch (e) {
+      // Transient — try again next tick.
+    }
+  }
+
+  function start() {
+    if (timer !== null) return;
+    timer = setInterval(tick, POLL_MS);
+  }
+  function stop() {
+    if (timer === null) return;
+    clearInterval(timer);
+    timer = null;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") start();
+    else stop();
+  });
+
+  captureBaseline().then(() => {
+    if (document.visibilityState === "visible") start();
+  });
+})();
+
+// Click-to-trade handler. Wired to every "would trade →" button in the
+// Watch List card. Posts to the dashboard server's
+// /api/execute_trade endpoint, which spawns `main.py --execute-ticker`
+// and returns 202 once the subprocess is launched. The actual trade
+// approval still happens via Telegram on the user's phone — this just
+// kicks off the bot run that will send that Telegram.
+async function executeTrade(btn) {
+  const ticker = btn.dataset.ticker;
+  const side = (btn.dataset.side || "").toLowerCase();
+  const ourPct = btn.dataset.ourProb;
+  const mktPct = btn.dataset.marketProb;
+  const sideUpper = side.toUpperCase();
+  // Confirmation dialog with the same numbers shown in the row, so the
+  // user has one last chance to verify the row they meant to click is
+  // the row that's about to fire.
+  const ok = window.confirm(
+    "Click-to-trade: " + ticker + "\n\n" +
+    "Buy " + sideUpper + "  |  Our P: " + ourPct + "%  |  Market P: " + mktPct + "%\n\n" +
+    "This launches a fresh scan for THIS ticker. If it still passes the bot's " +
+    "filters, Telegram will ask for approval before any order is placed. " +
+    "If it no longer qualifies, you'll get a Telegram explaining why.\n\n" +
+    "Proceed?"
+  );
+  if (!ok) return;
+
+  // Reach the status span we left in the cell. Multiple rows may share a
+  // ticker (different sides), so we scope by the row's tbody position.
+  const status = btn.parentElement.querySelector(
+    `.trade-status[data-ticker="${ticker.replace(/"/g, '\\"')}"]`
+  );
+  btn.disabled = true;
+  btn.textContent = "queuing…";
+  if (status) {
+    status.className = "trade-status";
+    status.textContent = "Sending to bot…";
+  }
+
+  try {
+    const resp = await fetch("/api/execute_trade", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ticker: ticker, side: side}),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.status === 202 && data.ok) {
+      btn.textContent = "queued ✓";
+      if (status) {
+        status.className = "trade-status ok";
+        status.textContent = "Queued. Watch Telegram (~60s).";
+      }
+      // Leave the button disabled; if the user wants to retry they can
+      // refresh the dashboard. Re-enabling would invite a double-click
+      // → two scans → two Telegram alerts for the same ticker, which
+      // is exactly the kind of stomp-on-each-other problem the
+      // single-instance lock was added to prevent.
+    } else {
+      const errMsg = data.error || ("HTTP " + resp.status);
+      btn.disabled = false;
+      btn.textContent = "would trade →";
+      if (status) {
+        status.className = "trade-status error";
+        status.textContent = "✗ " + errMsg;
+      } else {
+        window.alert("Click-to-trade failed: " + errMsg);
+      }
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "would trade →";
+    if (status) {
+      status.className = "trade-status error";
+      status.textContent = "✗ network error: " + (e && e.message ? e.message : e);
+    }
+  }
+}
+const ageString = (iso) => {
+  if (!iso) return "no snapshot";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "no snapshot";
+  const diffMin = Math.floor((Date.now() - t) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return diffMin + " min ago";
+  const h = Math.floor(diffMin / 60);
+  if (h < 24) return h + "h " + (diffMin % 60) + "m ago";
+  return Math.floor(h / 24) + "d " + (h % 24) + "h ago";
+};
+
+// P&L chart tooltip handlers. Inline on each <circle> so we don't need to
+// re-bind on every render. The tooltip lives inside the chart card with
+// position:absolute, and we compute its placement from the dot's
+// getBoundingClientRect (the SVG's responsive scaling means we can't use
+// the SVG's own coordinate system for tooltip placement).
+function showPnlTip(circle) {
+  const tip = document.getElementById("chart-tip");
+  if (!tip) return;
+  const date = circle.dataset.date || "";
+  const trades = parseInt(circle.dataset.trades || "1", 10);
+  const wins = parseInt(circle.dataset.wins || "0", 10);
+  const pnl = parseFloat(circle.dataset.pnl);
+  const cum = parseFloat(circle.dataset.cum);
+  // "2026-04-30" → "Apr 30, 2026" — friendlier read than the raw ISO date.
+  const friendlyDate = (() => {
+    const d = new Date(date + "T12:00:00Z");
+    if (Number.isNaN(d.getTime())) return date;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  })();
+  const pnlCls = pnl >= 0 ? "tip-pos" : "tip-neg";
+  const cumCls = cum >= 0 ? "tip-pos" : "tip-neg";
+  const sign = (n) => (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2);
+  // Daily win rate — color-coded against 50% so the eye finds bad days fast.
+  // 0/0 days never get rendered (we only emit a dot when n_trades > 0), but
+  // the guard keeps NaN out of the DOM if the data shape ever shifts. The
+  // "(wins/trades)" suffix carries the daily trade count, so the previous
+  // standalone "N trades" line was dropped to avoid the redundancy.
+  const wr = trades > 0 ? (wins / trades) * 100 : 0;
+  const wrCls = wr >= 50 ? "tip-pos" : "tip-neg";
+  tip.innerHTML = `
+    <div class="tip-date">${escapeHtml(friendlyDate)}</div>
+    <div class="tip-row">Win rate: <span class="${wrCls}">${wr.toFixed(0)}%</span> <span class="muted">(${wins}/${trades})</span></div>
+    <div class="tip-row">Day P&amp;L: <span class="${pnlCls}">${sign(pnl)}</span></div>
+    <div>Cumulative: <span class="${cumCls}">${sign(cum)}</span></div>
+  `;
+  // Position the tip above the dot, in card-relative coordinates.
+  const card = circle.closest(".card");
+  if (!card) return;
+  const dotRect = circle.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  tip.style.left = (dotRect.left - cardRect.left + dotRect.width / 2) + "px";
+  tip.style.top  = (dotRect.top  - cardRect.top) + "px";
+  tip.classList.add("visible");
+}
+function hidePnlTip() {
+  const tip = document.getElementById("chart-tip");
+  if (tip) tip.classList.remove("visible");
+}
+
+// Calibration plot hover tooltip — same pattern as showPnlTip but reads
+// the bucket's predicted/observed/N fields and labels them so the user
+// learns the chart's vocabulary by hovering.
+function showCalTip(circle) {
+  const tip = document.getElementById("cal-tip");
+  if (!tip) return;
+  const pred = parseFloat(circle.dataset.pred);
+  const obs = parseFloat(circle.dataset.obs);
+  const n = parseInt(circle.dataset.n, 10);
+  const won = parseInt(circle.dataset.won, 10);
+  const range = circle.dataset.range || "";
+  const gap = obs - pred;
+  const gapCls = Math.abs(gap) < 0.02 ? "" : (gap >= 0 ? "tip-pos" : "tip-neg");
+  const gapStr = (gap >= 0 ? "+" : "") + (gap * 100).toFixed(1) + " pp";
+  tip.innerHTML = `
+    <div class="tip-date">${escapeHtml(range)}% bucket</div>
+    <div class="tip-ticker">${n} trade${n === 1 ? "" : "s"} &middot; ${won} won</div>
+    <div class="tip-row">Predicted: <span style="font-family: monospace;">${(pred * 100).toFixed(1)}%</span></div>
+    <div>Observed: <span style="font-family: monospace;">${(obs * 100).toFixed(1)}%</span> <span class="${gapCls}">(${gapStr})</span></div>
+  `;
+  const card = circle.closest(".card");
+  if (!card) return;
+  const dotRect = circle.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  tip.style.left = (dotRect.left - cardRect.left + dotRect.width / 2) + "px";
+  tip.style.top = (dotRect.top - cardRect.top) + "px";
+  tip.classList.add("visible");
+}
+function hideCalTip() {
+  const tip = document.getElementById("cal-tip");
+  if (tip) tip.classList.remove("visible");
+}
+
+function renderAbout(data) {
+  return (data && data.about_html) ? data.about_html : "";
+}
+
+function renderBalance(data) {
+  // Both numbers come from a single Kalshi /balance call:
+  //   balance_usd   = cash sitting in the wallet
+  //   portfolio_usd = value of open positions at current market mids
+  //                   (Kalshi's API calls THIS "portfolio_value", but
+  //                   Kalshi's UI uses "Portfolio" to mean cash + positions
+  //                   — i.e. the all-in account total. We mirror the UI here
+  //                   so the right-hand number matches what Aaron sees on
+  //                   kalshi.com without mental math.)
+  // n_positions       = weather (KXHIGH) positions only — bot scope
+  // n_positions_total = all positions, so a manual non-weather play doesn't
+  //                     vanish from the count
+  const k = data.kalshi || {};
+  const cash = k.balance_usd ?? null;
+  const positionValue = k.portfolio_usd ?? null;
+  const portfolioTotal = (cash != null && positionValue != null) ? cash + positionValue : null;
+  // Weather-bot dashboard scope: count and surface only the weather (KXHIGH)
+  // positions. Manual non-weather bets (e.g. KXMUSKOAI) still affect the
+  // portfolio total via Kalshi's portfolio_value field, but they don't
+  // belong in this card's count line — that's about what THE BOT is doing.
+  const nWx = k.n_positions ?? 0;
+  const positionLine = nWx === 0
+    ? "No open weather positions"
+    : `${nWx} open weather &middot; ${fmtUSD(positionValue)} in positions`;
+  const error = !k.ok ? `<div class="sub-stat neg">⚠ ${escapeHtml(k.error || "")}</div>` : "";
+  return `
+    <div class="card">
+      <div class="card-title">Account balance</div>
+      <div class="kpi-row">
+        <div>
+          <div class="big-number neutral" data-num-key="cash" data-num-value="${cash ?? ''}">${fmtUSD(cash)}</div>
+          <div class="sub-stat">Cash balance</div>
+        </div>
+        <div>
+          <div class="big-number neutral" data-num-key="portfolio" data-num-value="${portfolioTotal ?? ''}">${fmtUSD(portfolioTotal)}</div>
+          <div class="sub-stat">Portfolio total <span class="muted">(cash + positions)</span></div>
+        </div>
+      </div>
+      <div class="sub-stat" style="margin-top: 8px;">${positionLine}</div>
+      ${error}
+    </div>`;
+}
+
+function renderPnL(data) {
+  const p = data.pnl || {};
+  const all = p.realized_all ?? 0, _24h = p.realized_24h ?? 0, _7d = p.realized_7d ?? 0;
+  const won = p.n_won ?? 0, lost = p.n_lost ?? 0;
+  const winRate = p.win_rate != null ? `${(p.win_rate * 100).toFixed(0)}%` : "—";
+  // W/L pill — green wins, red losses, neutral win-rate. Reads "5W / 9L · 36% win rate".
+  const wlLine = (won + lost) === 0
+    ? `<div class="sub-stat">No settled trades yet.</div>`
+    : `<div class="sub-stat"><span class="pos" style="font-weight: 600;">${won}W</span> / <span class="neg" style="font-weight: 600;">${lost}L</span> · ${winRate} win rate</div>`;
+  return `
+    <div class="card">
+      <div class="card-title">Profits &amp; Losses</div>
+      <div class="big-number ${pnlClass(all)}" data-num-key="pnl_all" data-num-value="${all ?? ''}">${fmtUSD(all, true)}</div>
+      ${wlLine}
+      <div class="sub-stat">Last 24h: <span class="${pnlClass(_24h)}">${fmtUSD(_24h, true)}</span> · 7d: <span class="${pnlClass(_7d)}">${fmtUSD(_7d, true)}</span></div>
+      <div class="sub-stat">${p.n_settled ?? 0} settled · ${p.n_trades ?? 0} total · open cost ${fmtUSD(p.open_cost_usd)}</div>
+    </div>`;
+}
+
+function renderKPI(data) {
+  const k = data.kpi || {};
+  const n = k.n_settled ?? 0;
+  const sampleTip = "Sample size — number of settled trades feeding these KPIs. Below 30 the headline numbers are dominated by statistical noise (a single $5 win/loss can swing ROI by several points), so KPIs are flagged 'preliminary' until N≥30 when Wilson-style CIs tighten enough to support decisions like cap raises.";
+  const sampleWarn = n < 30
+    ? `<div class="sub-stat"><span class="pill pill-warn" style="cursor: help;" title="${escapeHtml(sampleTip)}">N=${n} — preliminary</span></div>`
+    : `<div class="sub-stat"><span class="pill pill-good" style="cursor: help;" title="${escapeHtml(sampleTip)}">N=${n} — usable</span></div>`;
+  const ratio = k.edge_realization_ratio ?? null;
+
+  // Per-family breakdown table (B-buckets vs T-tails). Only rendered if
+  // we have at least one settled bucket OR tail trade — pre-launch this
+  // collapses to nothing instead of an empty table. Edge realization is
+  // the headline metric per family because it's the single most diagnostic
+  // number for whether the bot's edge claim is actually being captured.
+  const fam = k.by_family || {};
+  const famOrder = ["bucket", "tail", "unknown"];
+  const famLabel = { bucket: "B-buckets", tail: "T-tails", unknown: "Other" };
+  const famRows = famOrder
+    .filter(key => fam[key] && fam[key].n > 0)
+    .map(key => {
+      const f = fam[key];
+      const r = f.edge_realization_ratio;
+      const roiCell = f.roi != null ? `<span class="${pnlClass(f.roi)}">${fmtPct(f.roi)}</span>` : '<span class="muted">—</span>';
+      const ratioCell = r != null ? `<span class="${pnlClass(r)}">${r.toFixed(2)}</span>` : '<span class="muted">—</span>';
+      const pnlCell = `<span class="${pnlClass(f.realized_pnl)}">${fmtUSD(f.realized_pnl, true)}</span>`;
+      return `<tr>
+        <td>${famLabel[key]}</td>
+        <td class="numeric muted">${f.n}</td>
+        <td class="numeric mono">${roiCell}</td>
+        <td class="numeric mono">${f.brier ?? "—"}</td>
+        <td class="numeric mono">${ratioCell}</td>
+        <td class="numeric mono">${pnlCell}</td>
+      </tr>`;
+    }).join("");
+  // Per-family breakdown is dropped in demo mode — the B-bucket-vs-T-tail
+  // split is a GEO-specific tracking choice and the Edge-realization-by-
+  // family numbers are direct intel on which subset of markets the bot
+  // is profitable in.
+  const breakdown = (data.demo_mode || !famRows)
+    ? ""
+    : `<table style="margin-top: 12px; font-size: 11px;">
+         <thead><tr>
+           <th>Family</th>
+           <th class="numeric">N</th>
+           <th class="numeric">ROI</th>
+           <th class="numeric">Brier</th>
+           <th class="numeric">Edge real.</th>
+           <th class="numeric">P&amp;L</th>
+         </tr></thead>
+         <tbody>${famRows}</tbody>
+       </table>
+       <div class="help">B-buckets = 1°-wide windows (e.g. B62.5 = 62–63°F). T-tails = cold/hot tail markets (e.g. T54 = high &lt; 54°F). Watch each family's contribution to overall performance.</div>`;
+
+  return `
+    <div class="card">
+      <div class="card-title">KPI snapshot</div>
+      <div class="kpi-row">
+        <div><div class="big-number ${pnlClass(k.roi)}" style="font-size: 18px;">${k.roi != null ? fmtPct(k.roi) : "—"}</div><div class="sub-stat">ROI</div></div>
+        <div title="${escapeHtml("Brier score — average squared error of the bot's predicted probability vs the actual outcome. For each settled trade, take (p_model − outcome)², where outcome=1 if the contract resolved YES else 0; the Brier score is the mean across all settled trades. Lower is better: 0.00 = perfect, 0.25 = coin-flip baseline, 1.00 = consistently confident and wrong. A proper score, so a model can't game it without genuinely improving.")}" style="cursor: help;"><div class="big-number neutral" style="font-size: 18px;">${n === 0 ? "—" : (k.brier ?? "—")}</div><div class="sub-stat">Brier (0.25=coin)</div></div>
+        <div><div class="big-number ${pnlClass(ratio)}" style="font-size: 18px;">${ratio == null ? "—" : ratio.toFixed(2)}</div><div class="sub-stat">Edge realization</div></div>
+      </div>
+      ${sampleWarn}
+      ${breakdown}
+    </div>`;
+}
+
+function renderPositions(data) {
+  // Enriched per-position data is on data.open_trades; live counts are on data.kalshi.positions.
+  // Cross-index by ticker for the unified card.
+  const liveByTicker = {};
+  for (const p of ((data.kalshi || {}).positions || [])) liveByTicker[p.ticker] = p;
+  const trades = data.open_trades || [];
+  if (trades.length === 0) {
+    // Friendlier empty state — when the bot is in cash, surface the watch
+    // list count so the user knows the bot is still actively scanning.
+    const wlCount = ((data.watch_list || {}).candidates || []).length;
+    const wlNote = wlCount > 0
+      ? ` Watching ${wlCount} possible trade${wlCount === 1 ? "" : "s"} in the Watch List above.`
+      : ` No candidates currently passing the bot's filters.`;
+    return `<div class="card"><div class="card-title">Open Trades (live)</div><div class="empty">Bot is in cash.${wlNote}</div></div>`;
+  }
+
+  const verdictPill = (v, detail) => {
+    const label = { agree: "✓ Agree", disagree: "⚠ Disagree", split: "≈ Split", unknown: "—" }[v] || "—";
+    const titleAttr = detail ? ` title="${escapeHtml(detail)}"` : "";
+    return `<span class="pill pill-${v || "unknown"}"${titleAttr}>${label}</span>`;
+  };
+
+  // Format a UTC ISO timestamp ("2026-05-05T14:23:45+00:00") into a compact
+  // local-time stamp like "May 5, 2:23 PM". Falls back to "—" if missing.
+  // For multi-fill positions, prefer the earliest fill ts (when the bet was
+  // first placed); the data layer surfaces this as `first_fill_ts`.
+  const fmtPlacedTs = (iso) => {
+    if (!iso) return `<span class="muted">—</span>`;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return `<span class="muted">${escapeHtml(iso)}</span>`;
+    const dateStr = d.toLocaleDateString([], { month: "numeric", day: "numeric" });
+    const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return `<span class="muted" style="font-size: 11px;">${escapeHtml(dateStr)}, ${escapeHtml(timeStr)}</span>`;
+  };
+
+  // Aggregate totals
+  const totalCost = trades.reduce((s, t) => s + (t.cost_usd || 0), 0);
+  const totalMTM = trades.reduce((s, t) => s + (t.mtm_value_usd || 0), 0);
+  const totalUnrealized = trades.reduce((s, t) => s + (t.unrealized_pnl_usd || 0), 0);
+
+  const rows = trades.map(t => {
+    const live = liveByTicker[t.ticker] || {};
+    const sideCls = t.side === "yes" ? "pos" : "neg";
+    const v = (t.mos_verdict || {}).verdict || "unknown";
+    // Forecast detail moved off-cell into a hover tooltip on the pill so the
+    // table reads cleaner. Hover the Forecast verdict pill to see the underlying
+    // model maxes.
+    const mosDetailTip = (t.mos_gfs_max != null || t.mos_nam_max != null)
+      ? ""
+      : "";
+    const settlement = (t.settlement || {}).label || "—";
+    // For multi-fill positions, "Placed" shows the earliest fill ts so the
+    // user sees when the position was first opened, not when it was last
+    // added to. The ×N indicator on the entry-price cell already flags
+    // multi-fill aggregation if they want the gory detail.
+    const placedTs = t.first_fill_ts || t.ts;
+    const mid = t.current_yes_mid;
+    // Win % = market-implied probability your position pays out — the
+    // same number Kalshi shows on each open bet in its positions page.
+    // For YES bets it equals the YES mid; for NO bets it's (1 - YES mid).
+    // This is what Aaron originally asked for ("the percentage chance for
+    // each bet that it will win"). Color: green when winning, red when not.
+    const winProb = mid != null ? (t.side === "yes" ? mid : (1 - mid)) : null;
+    // Build the side-aware market-implied win-prob trajectory for the
+    // tooltip. Mirrors the Watch List's Win % tooltip pattern: same data
+    // source (.watch_list_history.jsonl, attached in enrich_open_positions)
+    // and same buildHistoryTooltip helper. We map market_prob (not our_prob)
+    // because this cell shows the market-implied win prob — the tooltip
+    // should track the *cell value* over time, not the model's confidence.
+    // For NO bets, win prob = 1 - market_prob; for YES, = market_prob.
+    const historyRaw = Array.isArray(t.history) ? t.history : [];
+    const winTitle = historyRaw.length === 0
+      ? "No prior scans recorded for this ticker"
+      : buildHistoryTooltip(
+          `Win % over time (${historyRaw.length} scan${historyRaw.length === 1 ? "" : "s"}, market-implied):`,
+          historyRaw,
+          r => r.market_prob == null ? null : (t.side === "yes" ? r.market_prob : (1 - r.market_prob)),
+          v => v == null ? "—" : `${(v * 100).toFixed(0)}%`,
+        );
+    const winTitleAttr = ` title="${escapeHtml(winTitle)}" style="cursor: help;"`;
+    const winCell = winProb != null
+      ? `<td class="numeric mono ${winProb >= 0.5 ? 'pos' : 'neg'}"${winTitleAttr}>${(winProb * 100).toFixed(0)}%</td>`
+      : `<td class="muted"${winTitleAttr}>—</td>`;
+    const mtmCell = t.unrealized_pnl_usd != null
+      ? `<td class="numeric ${pnlClass(t.unrealized_pnl_usd)}">${fmtUSD(t.unrealized_pnl_usd, true)}</td>`
+      : `<td class="muted">—</td>`;
+    const bucketDesc = t.bracket_description || "";
+    return `<tr>
+      <td class="mono">${escapeHtml(t.ticker)}</td>
+      <td><span class="muted" style="font-size: 11px;">${escapeHtml(bucketDesc)}</span></td>
+      <td>${fmtPlacedTs(placedTs)}</td>
+      <td><span class="muted" style="font-size: 11px;">${escapeHtml(settlement)}</span></td>
+      <td class="${sideCls}">${escapeHtml(String(t.side || "").toUpperCase())} ${t.n_contracts}</td>
+      <td class="numeric muted">@${t.price_cents}¢${t._n_fills > 1 ? ` <span style="font-size: 9px;">avg ×${t._n_fills}</span>` : ""}</td>
+      <td class="numeric">${fmtUSD(t.cost_usd)}</td>
+      ${winCell}
+      ${mtmCell}
+      <td>${verdictPill(v, mosDetailTip)}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-title">Open Trades (${trades.length})</div>
+      <div class="scrollable">
+        <table class="positions-table">
+          <thead><tr>
+            <th>Ticker</th>
+            <th>Bucket</th>
+            <th>Placed</th>
+            <th>Settles</th>
+            <th>Side × Qty</th>
+            <th class="numeric">Entry</th>
+            <th class="numeric">Cost</th>
+            <th class="numeric">Win %</th>
+            <th class="numeric">P&amp;L</th>
+            <th>Forecast verdict</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="font-weight: 600;">
+              <td colspan="6" style="text-align: right; padding-top: 8px; border-top: 2px solid #e3e3e3;">Totals:</td>
+              <td class="numeric" style="padding-top: 8px; border-top: 2px solid #e3e3e3;">${fmtUSD(totalCost)}</td>
+              <td style="padding-top: 8px; border-top: 2px solid #e3e3e3;"></td>
+              <td class="numeric ${pnlClass(totalUnrealized)}" style="padding-top: 8px; border-top: 2px solid #e3e3e3;">${fmtUSD(totalUnrealized, true)}</td>
+              <td style="padding-top: 8px; border-top: 2px solid #e3e3e3;"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="help">Win % = market-implied probability your position pays out — the same number Kalshi shows on each open bet (for NO bets it's the inverse of the YES bucket price). P&amp;L = what we'd make or lose if we sold each position right now at the current Kalshi mid (i.e. unrealized — these positions haven't settled yet). Verdict comes from a secondary forecast source.${data.n_phantom_open_trades > 0 ? ` <span class="muted">${data.n_phantom_open_trades} DB row${data.n_phantom_open_trades === 1 ? "" : "s"} marked open but not held on Kalshi were filtered (likely cancelled fills — DB drift to investigate).</span>` : ""}</div>
+    </div>`;
+}
+
+// Multi-row tooltip for a Watch List history series. Renders as plain text
+// in the HTML title attribute — newlines come through as line breaks in
+// native browser tooltips. `format(value)` formats each historical sample.
+// `tsFormat(ts)` shortens timestamps to HH:MM (UTC) or "MMM D" if older
+// than today; native tooltip = no styling, so legibility comes from spacing.
+const buildHistoryTooltip = (header, history, valueFn, formatFn) => {
+  if (!history || history.length === 0) return "No prior scans recorded yet";
+  // Newest first — matches how the user reads dashboards. Show up to 12
+  // entries; older samples are summarized in a trailing line.
+  const lines = [header];
+  const reversed = history.slice().reverse();
+  const cap = Math.min(reversed.length, 12);
+  // Display timestamps in Eastern time — that's the user's local trading
+  // frame and matches how Kalshi documents settlement windows. History rows
+  // are persisted as ISO UTC ("...T01:40:00+00:00") in the cache file.
+  const tz = "America/New_York";
+  // 12-hour clock with AM/PM — matches how the user reads times in chat.
+  const fmtTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
+  });
+  // en-CA gives "YYYY-MM-DD" — convenient for the today-vs-older comparison.
+  const fmtDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const todayET = fmtDate.format(new Date());
+  for (let i = 0; i < cap; i++) {
+    const r = reversed[i];
+    const ts = r.ts || "";
+    let when = ts;
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      const dPart = fmtDate.format(d);
+      const tPart = fmtTime.format(d);
+      when = (dPart === todayET) ? `${tPart} ET` : `${dPart} ${tPart} ET`;
+    }
+    lines.push(`${when}  ${formatFn(valueFn(r))}`);
+  }
+  if (history.length > cap) {
+    lines.push(`… +${history.length - cap} older sample(s) not shown`);
+  }
+  return lines.join("\n");
+};
+
+function renderWatchList(data) {
+  // Forward-looking card — what the bot is currently considering. Each row
+  // is a candidate that cleared every gate in the strategy module (edge
+  // the bot's filters, settlement window, etc.).
+  // Sorted by |edge| descending. The data is read from a file cache that's
+  // written as a side effect of each bot run — the dashboard never runs
+  // scan_markets() itself (too slow, ~60s). This is a manual-scan workflow:
+  // re-run main.py to refresh the cache.
+  const w = data.watch_list || {};
+  // Refresh button — embedded in every render branch (no-cache, empty,
+  // populated). Clicking POSTs to /api/refresh_watch_list which spawns
+  // the standalone scan script; the JS handler polls /api/watch_list_meta
+  // and reloads the page once the cache mtime moves. Static HTML — the
+  // mtime baseline is captured at click time, not page-render time, so
+  // it's always accurate.
+  // In demo mode the watch list is a frozen synthetic snapshot — the
+  // refresh button has nothing to refresh against, so we omit it.
+  const refreshBtnHtml = data.demo_mode ? "" : `
+    <button type="button" class="wl-refresh-btn" id="wlRefreshBtn"
+            title="Re-scan the watch list" aria-label="Refresh watch list"
+            onclick="refreshWatchList(this)">↻</button>
+    <span class="wl-refresh-status" id="wlRefreshStatus"></span>`;
+  if (!w.ok) {
+    return `<div class="card" style="grid-column: span 2;">
+      <div class="card-title">Watch List ${refreshBtnHtml}</div>
+      <div class="sub-stat neg">⚠ Couldn't load watch list: ${escapeHtml(w.error || "")}</div>
+      <div class="help">Tap <strong>↻ Refresh</strong> above to run a scan and populate the cache, or run <code>main.py</code> from the terminal.</div>
+    </div>`;
+  }
+  const candidates = w.candidates || [];
+  // Build the freshness line — "scanned X min ago, cached" or "just scanned"
+  const ageMin = w.age_seconds != null ? Math.round(w.age_seconds / 60) : null;
+  const freshLabel = ageMin == null ? "" :
+    (ageMin === 0 ? "scanned just now" :
+     ageMin === 1 ? "scanned 1 min ago" :
+     `scanned ${ageMin} min ago`);
+  const cacheNote = w.from_cache ? ` <span class="muted">(from cache — re-run <code>main.py</code> to refresh)</span>` : "";
+
+  if (candidates.length === 0) {
+    return `<div class="card" style="grid-column: span 2;">
+      <div class="card-title">Watch List ${refreshBtnHtml}</div>
+      <div class="empty">No possible trades cleared the bot's filters this scan. Either market prices have caught up to the model, or no markets in the window meet the bot's edge threshold.</div>
+      <div class="help">${escapeHtml(freshLabel)}${cacheNote}.</div>
+    </div>`;
+  }
+
+  // Expected $ P&L preview is computed at the bot's per-trade dollar cap
+  // (per-trade cap). It's just a forecast, not a
+  // promise — actual contract count is floored to whole contracts and may
+  // be further trimmed by Kelly / per-city / per-date caps. Hardcoded
+  // here because the watch_list payload doesn't surface the env value;
+  // bump if the per-trade cap changes.
+  const PNL_PREVIEW_USD = 5.0;
+  const rows = candidates.map(c => {
+    const sideCls = c.side === "yes" ? "pos" : "neg";
+    const edgeCls = c.edge > 0 ? "pos" : "neg";
+    const edgePct = `${c.edge >= 0 ? "+" : ""}${(c.edge * 100).toFixed(1)}%`;
+    const ourP = `${(c.our_prob * 100).toFixed(0)}%`;
+    const mktP = `${(c.market_prob * 100).toFixed(0)}%`;
+    // Per-contract cost (in dollars, 0..1) — side-aware. Pulled from the
+    // book's far-side quote when available, falling back to market_prob.
+    // Used for Entry, Cost, and Exp. P&L so all three columns agree.
+    // Note: maker pricing would shave another ~1¢ off in our favor; we keep
+    // the taker-side quote here for a conservative preview, matching what
+    // Open Trades would show if we filled at the ask.
+    let perContractCost;
+    if (c.side === "yes") {
+      perContractCost = (c.yes_ask != null) ? c.yes_ask : c.market_prob;
+    } else {
+      perContractCost = (c.yes_bid != null) ? (1 - c.yes_bid) : (1 - c.market_prob);
+    }
+    // Entry = per-contract cost in cents (mirrors Open Trades' Entry column).
+    const entryStr = (perContractCost != null && perContractCost > 0)
+      ? `${Math.round(perContractCost * 100)}¢`
+      : "—";
+    // Cost = projected $ for the actual trade size after the whole-contract
+    // floor (mirrors Open Trades' Cost). per-trade-capped — Kelly /
+    // per-city / per-date caps may trim it further at place-order time.
+    let projectedCost = null;
+    let nContracts = 0;
+    if (perContractCost != null && perContractCost > 0) {
+      nContracts = Math.floor(PNL_PREVIEW_USD / perContractCost);
+      projectedCost = nContracts * perContractCost;
+    }
+    const costStr = projectedCost != null ? fmtUSD(projectedCost) : "—";
+    // Expected P&L for a hypothetical PNL_PREVIEW_USD trade at the
+    // counterparty side's best quote. Win probability is side-relative.
+    let expectedPnl = null;
+    if (perContractCost != null && perContractCost > 0) {
+      const winProbForPnl = c.side === "yes" ? c.our_prob : (1 - c.our_prob);
+      expectedPnl = PNL_PREVIEW_USD * (winProbForPnl - perContractCost) / perContractCost;
+    }
+    const pnlCls = expectedPnl == null ? "" : (expectedPnl >= 0 ? "pos" : "neg");
+    const pnlStr = expectedPnl == null
+      ? "—"
+      : `${expectedPnl >= 0 ? "+" : ""}$${expectedPnl.toFixed(2)}`;
+    // Side-relative win probability — our model's probability that THE BET
+    // (not the YES outcome) pays out. For YES bets, that's our_prob; for NO
+    // bets, it's 1 - our_prob. The existing Our/Mkt Prob columns both refer
+    // to the YES outcome (Kalshi convention), which means the user has to
+    // mentally invert them when reading a NO row. This collapses that
+    // inversion into one number.
+    const winProb = c.side === "yes" ? c.our_prob : (1 - c.our_prob);
+    const winP = `${(winProb * 100).toFixed(0)}%`;
+    // Win % delta vs. previous scan. _dashboard_data.watch_list() attaches
+    // c.prev_our_prob (YES-outcome probability) when a (ticker, side) match
+    // exists in the prior cache. Compare the *displayed* (rounded-to-int-%)
+    // values rather than raw probabilities — that way we only color when the
+    // visible number actually moved, avoiding noisy flashes on sub-percent
+    // wiggles. Green = went up, red = went down, neutral = unchanged or new.
+    let winCls = "";
+    if (c.prev_our_prob != null) {
+      const prevWinProb = c.side === "yes" ? c.prev_our_prob : (1 - c.prev_our_prob);
+      const prevDisp = Math.round(prevWinProb * 100);
+      const curDisp = Math.round(winProb * 100);
+      const delta = curDisp - prevDisp;
+      if (delta > 0) winCls = "pos";
+      else if (delta < 0) winCls = "neg";
+    }
+    // Build the side-aware win-prob history for the tooltip.
+    // c.history is a list of {ts, our_prob, market_prob, edge} written by
+    // _watch_list_history.append_history() and capped at HISTORY_MAX_PER_KEY
+    // per (ticker, side). We DON'T splice in the current scan row at the
+    // end — the current scan was already appended to history by the same
+    // refresh that wrote the cache, so it shows up as the last sample
+    // already.
+    const historyRaw = Array.isArray(c.history) ? c.history : [];
+    const winTitle = buildHistoryTooltip(
+      `Win % over time (${historyRaw.length} scan${historyRaw.length === 1 ? "" : "s"}, side-relative):`,
+      historyRaw,
+      r => c.side === "yes" ? r.our_prob : (1 - r.our_prob),
+      v => v == null ? "—" : `${(v * 100).toFixed(0)}%`,
+    );
+    // Mkt Prob delta — colored from OUR perspective, not absolute direction.
+    // For a YES bet, lower market_prob is better (cheaper to buy YES).
+    // For a NO bet, higher market_prob is better (cheaper to buy NO since
+    // NO cost = 1 - market_prob). This keeps the column's color semantics
+    // consistent with Win % and Edge: green always means "moved in our favor".
+    let mktCls = "";
+    let mktTitle = "";
+    if (c.prev_market_prob != null) {
+      const prevMktDisp = Math.round(c.prev_market_prob * 100);
+      const curMktDisp = Math.round(c.market_prob * 100);
+      const rawDelta = curMktDisp - prevMktDisp;
+      // Sign-flip for YES side so that "favorable to us" is always positive.
+      const favorableDelta = c.side === "yes" ? -rawDelta : rawDelta;
+      if (favorableDelta > 0) mktCls = "pos";
+      else if (favorableDelta < 0) mktCls = "neg";
+      const arrow = rawDelta > 0 ? "▲" : rawDelta < 0 ? "▼" : "·";
+      const sign = rawDelta > 0 ? "+" : "";
+      const dirNote = favorableDelta > 0 ? " (favorable)" : favorableDelta < 0 ? " (against us)" : "";
+      mktTitle = `Last scan: ${prevMktDisp}% (${arrow} ${sign}${rawDelta} pp${dirNote})`;
+    } else {
+      mktTitle = "No prior scan to compare against";
+    }
+    // Edge delta — already signed (positive = favorable bet). Higher edge =
+    // green, lower = red. This will often correlate with Win % and Mkt Prob
+    // deltas, but it's a useful summary because edge captures both at once.
+    let edgeDeltaCls = edgeCls;
+    if (c.prev_edge != null) {
+      // Compare raw edge values (4 decimals from cache) for tooltip precision,
+      // but color on the displayed pp value to stay consistent with the Win%
+      // and Mkt% logic — only color when the *visible* number changed.
+      const prevEdgeDisp = (c.prev_edge * 100).toFixed(1);
+      const curEdgeDisp = (c.edge * 100).toFixed(1);
+      const deltaPp = parseFloat(curEdgeDisp) - parseFloat(prevEdgeDisp);
+      // Override the static edgeCls (sign-of-edge) with delta-of-edge when
+      // we have a prior scan: this matches the color semantics of the other
+      // two delta columns. Edge sign is still legible from the +/- in the
+      // value itself, so we don't lose information.
+      if (deltaPp > 0) edgeDeltaCls = "pos";
+      else if (deltaPp < 0) edgeDeltaCls = "neg";
+      else edgeDeltaCls = "";
+    }
+    // Edge history → multi-row tooltip. We also inline the mkt-prob trail
+    // in the tooltip text since the Watch List has no dedicated Mkt Prob
+    // column (it's folded into this cell's tooltip). That gives Aaron
+    // variance over time on the full bet thesis: model's win % (Win % cell),
+    // edge (this cell), and the market price the edge was computed against.
+    // Tooltip: header line, then per-scan rows with edge + mkt prob inline.
+    let edgeTitle;
+    if (historyRaw.length === 0) {
+      edgeTitle = `No prior scans recorded yet | Our prob: ${ourP} · Mkt prob: ${mktP}`;
+    } else {
+      const headerLine = `Edge over time (${historyRaw.length} scan${historyRaw.length === 1 ? "" : "s"}; mkt prob in parens):`;
+      const tooltipBody = buildHistoryTooltip(
+        headerLine,
+        historyRaw,
+        r => r,
+        r => {
+          const e = r.edge;
+          const mp = r.market_prob;
+          const eStr = e == null ? "—" : `${e >= 0 ? "+" : ""}${(e * 100).toFixed(1)}%`;
+          const mpStr = mp == null ? "—" : `${(mp * 100).toFixed(0)}%`;
+          return `${eStr}  (mkt ${mpStr})`;
+        },
+      );
+      edgeTitle = `${tooltipBody}\n\nNow: Our prob ${ourP} · Mkt prob ${mktP}`;
+    }
+    // Verdict cell precedence:
+    //   1. placed_status set       → green "placed"/"filled" pill (Telegram-
+    //      approved trade already in pnl.sqlite for this ticker+side, so the
+    //      click-to-trade button would just duplicate the order)
+    //   2. is_locked               → flat warn pill, NO click affordance per
+    //      the LOCKED-bypass-distrust rule (memory: never bypass risk caps
+    //      on is_locked opportunities; an early-pilot loss from a stale observation
+    //      observations that disagreed with Kalshi settlement)
+    //   3. otherwise               → click-to-trade button + status span
+    let verdict;
+    if (c.placed_status) {
+      const label = c.placed_status === "filled" ? "filled" : "placed";
+      verdict = `<span class="pill pill-good">${label}</span>`;
+    } else if (c.is_locked) {
+      verdict = `<span class="pill pill-warn">locked</span>`;
+    } else if (data.demo_mode) {
+      // No click-to-trade button in the demo — the synthetic candidates
+      // wouldn't lead anywhere even if it were wired. A muted pill
+      // matches the visual rhythm of the other Verdict cells without
+      // implying interactivity.
+      verdict = `<span class="pill pill-unknown">would trade</span>`;
+    } else {
+      verdict = `<button type="button" class="pill pill-action"
+                  data-ticker="${escapeHtml(c.ticker)}"
+                  data-side="${escapeHtml(c.side)}"
+                  data-our-prob="${(c.our_prob * 100).toFixed(0)}"
+                  data-market-prob="${(c.market_prob * 100).toFixed(0)}"
+                  onclick="executeTrade(this)">would trade →</button>
+         <span class="trade-status" data-ticker="${escapeHtml(c.ticker)}"></span>`;
+    }
+    const desc = c.bracket_description || c.ticker;
+    return `<tr>
+      <td class="mono">${escapeHtml(c.ticker)}</td>
+      <td><span class="muted" style="font-size: 11px;">${escapeHtml(desc)}</span></td>
+      <td class="${sideCls}" style="font-weight: 600;">${escapeHtml(c.side.toUpperCase())}${nContracts > 0 ? ` ${nContracts}` : ""}</td>
+      <td class="numeric mono muted">${entryStr}</td>
+      <td class="numeric">${costStr}</td>
+      <td class="numeric mono ${winCls}" style="font-weight: 600; cursor: help;" title="${escapeHtml(winTitle)}">${winP}</td>
+      <td class="numeric mono ${edgeDeltaCls}" style="font-weight: 600; cursor: help;" title="${escapeHtml(edgeTitle)}">${edgePct}</td>
+      <td class="numeric mono ${pnlCls}" style="font-weight: 600;">${pnlStr}</td>
+      <td>${verdict}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-title">Watch List (${candidates.length} possible trade${candidates.length === 1 ? "" : "s"}) ${refreshBtnHtml}</div>
+      <div class="scrollable">
+        <table>
+          <thead><tr>
+            <th>Ticker</th>
+            <th>Bucket</th>
+            <th>Side × Qty</th>
+            <th class="numeric">Entry</th>
+            <th class="numeric">Cost</th>
+            <th class="numeric">Win %</th>
+            <th class="numeric">Edge</th>
+            <th class="numeric">Exp. P&amp;L</th>
+            <th>Verdict</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="help">${data.demo_mode ? `Synthetic candidates. Sorted by edge magnitude. ${escapeHtml(freshLabel)}${cacheNote}. <strong>Entry</strong> = per-contract cost in cents. <strong>Cost</strong> = projected $ on a fill. <strong>Win %</strong> and <strong>Edge</strong> are color-coded vs. the last scan. Click-to-trade is disabled in this preview.` : `Live model output. Each row passed every filter in the bot's strategy module (the bot's filter set). Sorted by edge magnitude. ${escapeHtml(freshLabel)}${cacheNote}. <strong>Entry</strong> = per-contract cost in cents (side-aware: YES ask, or 1 − YES bid for NO). <strong>Cost</strong> = projected $ at the $5 max-trade preview after the whole-contract floor; mirrors what would land in Open Trades on a fill. <strong>Win %</strong> and <strong>Edge</strong> are color-coded vs. the last scan: <span class="pos">green</span> = moved in our favor, <span class="neg">red</span> = moved against us (hover any cell for the prior value and delta). Hover the Edge cell to see the underlying Our Prob / Mkt Prob breakdown. <strong>Exp. P&amp;L</strong> previews the expected dollar profit on the projected trade size — Kelly + per-city/per-date caps may trim it further in practice. <strong>Tap "would trade →"</strong> to launch a fresh scan for that single ticker; if it still passes the gates you'll get a Telegram approval prompt within ~60 seconds. Locked rows stay non-clickable.`}</div>
+    </div>`;
+}
+
+function renderRestingOrders(data) {
+  return "";
+}
+
+function renderCalibration(data) {
+  return "";
+}
+
+function renderPnLChart(data) {
+  const series = data.cumulative_pnl_series || [];
+  if (series.length < 2) {
+    return `<div class="card"><div class="card-title">Cumulative P&amp;L</div><div class="empty">Need at least 2 settled trades to draw a chart.</div></div>`;
+  }
+  // Inline SVG line chart — no Chart.js needed for ~10-100 data points.
+  const W = 580, H = 200, pad = { l: 50, r: 16, t: 14, b: 28 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const cums = series.map(s => s.cumulative_usd);
+  const yMin = Math.min(0, ...cums);
+  const yMax = Math.max(0, ...cums);
+  const yPad = (yMax - yMin) * 0.1 || 1;
+  const yLo = yMin - yPad, yHi = yMax + yPad;
+  const xOf = (i) => pad.l + (series.length === 1 ? 0 : (i / (series.length - 1)) * innerW);
+  const yOf = (v) => pad.t + ((yHi - v) / (yHi - yLo)) * innerH;
+  const points = series.map((s, i) => `${xOf(i)},${yOf(s.cumulative_usd)}`).join(" ");
+  // Each dot carries its own data via dataset attributes so the global
+  // showPnlTip() handler can read them on mouseenter without us needing
+  // to maintain a parallel JS array. Each dot now represents one full
+  // settlement day (n_trades trades), not a single trade — the tooltip
+  // shows the day's combined P&L plus the running total.
+  const dots = series.map((s, i) => {
+    const dateAttr = escapeHtml((s.settle_ts || "").slice(0, 10));
+    const fill = s.cumulative_usd >= 0 ? "var(--pos-color)" : "var(--neg-color)";
+    return `<circle class="pnl-dot" cx="${xOf(i)}" cy="${yOf(s.cumulative_usd)}" r="3.5" fill="${fill}" data-date="${dateAttr}" data-cum="${s.cumulative_usd}" data-pnl="${s.pnl_usd}" data-trades="${s.n_trades || 1}" data-wins="${s.wins || 0}" onmouseenter="showPnlTip(this)" onmouseleave="hidePnlTip()" />`;
+  }).join("");
+  // Y-axis labels — fill via CSS var so they invert correctly in dark mode
+  const yLabels = [yLo, (yLo + yHi) / 2, yHi].map(v =>
+    `<text x="${pad.l - 6}" y="${yOf(v) + 4}" text-anchor="end" font-size="10" fill="var(--chart-axis)">${fmtUSD(v, true)}</text>`
+  ).join("");
+  // Zero baseline
+  const zeroLine = (yLo < 0 && yHi > 0)
+    ? `<line x1="${pad.l}" y1="${yOf(0)}" x2="${pad.l + innerW}" y2="${yOf(0)}" stroke="var(--chart-zero)" stroke-dasharray="3,3" />`
+    : "";
+  // X-axis labels: first/middle/last
+  const dateLabel = (s) => (s?.settle_ts || "").slice(5, 10);
+  const xLabels = [
+    `<text x="${pad.l}" y="${H - 8}" font-size="10" fill="var(--chart-axis)">${escapeHtml(dateLabel(series[0]))}</text>`,
+    `<text x="${pad.l + innerW / 2}" y="${H - 8}" font-size="10" fill="var(--chart-axis)" text-anchor="middle">${escapeHtml(dateLabel(series[Math.floor(series.length / 2)]))}</text>`,
+    `<text x="${pad.l + innerW}" y="${H - 8}" font-size="10" fill="var(--chart-axis)" text-anchor="end">${escapeHtml(dateLabel(series[series.length - 1]))}</text>`,
+  ].join("");
+  const lastCum = series[series.length - 1].cumulative_usd;
+  const lineColor = lastCum >= 0 ? "var(--pos-color)" : "var(--neg-color)";
+  // Lifetime WR badge in the card title — sums wins / trades across every
+  // settled day in the series so the at-a-glance number on the card matches
+  // what the per-day tooltip aggregates to.
+  const totalTrades = series.reduce((acc, s) => acc + (s.n_trades || 0), 0);
+  const totalWins = series.reduce((acc, s) => acc + (s.wins || 0), 0);
+  const wrPct = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0;
+  const wrCls = wrPct >= 50 ? "pos" : "neg";
+  const wrBadge = totalTrades > 0
+    ? ` &middot; <span class="${wrCls}">${wrPct.toFixed(0)}%</span> <span class="muted" style="font-weight: 400;">WR (${totalWins}/${totalTrades})</span>`
+    : "";
+  return `
+    <div class="card" style="grid-column: span 2; position: relative;">
+      <div class="card-title">Cumulative realized P&amp;L  (${series.length} day${series.length === 1 ? "" : "s"}${wrBadge})</div>
+      <svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;">
+        ${zeroLine}
+        <polyline points="${points}" fill="none" stroke="${lineColor}" stroke-width="2" />
+        ${dots}
+        ${yLabels}
+        ${xLabels}
+      </svg>
+      <div class="chart-tip" id="chart-tip"></div>
+      <div class="help">Each dot = one settlement day (all trades that settled that day combined). Hover for the day's net P&amp;L, the trade count, and the running total. The cliff on 2026-04-29 was the lock-bypass disaster (already fixed in code; can no longer happen).</div>
+    </div>`;
+}
+
+function renderRoadmap(data) {
+  return "";
+}
+
+function renderHealthBadge(data) {
+  const h = data.bot_health || {};
+  const v = h.verdict || "unknown";
+  const ageH = h.age_hours;
+  let label;
+  if (v === "ok") label = "✓ healthy";
+  else if (v === "stale") label = "⚠ stale";
+  else if (v === "overdue") label = "⚠ overdue";
+  else if (v === "error") label = "✗ error";
+  else label = "—";
+  const ageStr = ageH != null ? ` · last run ${ageString(h.last_run_ts)}` : "";
+  return `<span class="pill pill-${v}">${label}${ageStr}</span>`;
+}
+
+function renderRecentTrades(data) {
+  // "Closed trades" — settled wins/losses only. Open positions live in
+  // the Active Book section, so this card avoids the duplication.
+  const trades = data.recent_trades || [];
+  if (trades.length === 0) return `<div class="card"><div class="card-title">Closed trades</div><div class="empty">No closed trades yet.</div></div>`;
+  const rows = trades.map(t => {
+    const stateClass = t.state === "won" ? "pill-won" : "pill-lost";
+    const pnlCell = t.pnl_usd !== null && t.pnl_usd !== undefined
+      ? `<td class="numeric ${pnlClass(t.pnl_usd)}">${fmtUSD(t.pnl_usd, true)}</td>`
+      : '<td class="muted">—</td>';
+    // "Total won/lost" = gross dollar impact of this trade. On a win it's
+    // n_contracts × $1.00 (Kalshi pays $1/contract — the cash that landed
+    // on settlement, before netting out cost). On a loss it's -cost_usd
+    // (the money that disappeared). For losers this is equivalent to P&L,
+    // but kept here so the column is non-zero on every settled row.
+    let totalWL = null;
+    if (t.state === "won" && t.cost_usd != null && t.pnl_usd != null) {
+      totalWL = t.cost_usd + t.pnl_usd;        // = qty × $1
+    } else if (t.state === "lost" && t.cost_usd != null) {
+      totalWL = -t.cost_usd;
+    }
+    const totalWLCell = totalWL !== null
+      ? `<td class="numeric mono ${pnlClass(totalWL)}">${fmtUSD(totalWL, true)}</td>`
+      : '<td class="muted">—</td>';
+    const sideCls = t.side === "yes" ? "pos" : "neg";
+    return `<tr>
+      <td class="muted" style="font-size: 11px;">${escapeHtml((t.ts || "").split("T")[0])}</td>
+      <td class="mono">${escapeHtml(t.ticker)}</td>
+      <td class="${sideCls}">${escapeHtml(String(t.side || "").toUpperCase())} @${t.price_cents}¢</td>
+      <td class="numeric">${t.n_contracts}</td>
+      ${pnlCell}
+      ${totalWLCell}
+      <td><span class="pill ${stateClass}">${escapeHtml(t.state || "")}</span></td>
+    </tr>`;
+  }).join("");
+  return `
+    <div class="card" style="grid-column: span 2;">
+      <div class="card-title">Closed trades (${trades.length})</div>
+      <div class="scrollable">
+        <table>
+          <thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th class="numeric">Qty</th><th class="numeric">P&amp;L</th><th class="numeric">W/L</th><th>Result</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderMOS(data) {
+  return "";
+}
+
+function renderCLI(data) {
+  return "";
+}
+
+function renderSkips(data) {
+  return "";
+}
+
+function renderArbs(data) {
+  return "";
+}
+
+function renderBrierDrift(data) {
+  return "";
+}
+
+function renderSanityBanner(data) {
+  const s = data.sanity;
+  if (!s || !s.warnings || s.warnings.length === 0) return "";
+  return s.warnings.map(w => `
+    <div class="sanity-banner">
+      <strong>${escapeHtml(w.title)}</strong>
+      <div class="detail">${escapeHtml(w.detail)}</div>
+    </div>`).join("");
+}
+
+function renderDemoBanner(data) {
+  // The "What is GEO?" About card already explains the demo nature; we
+  // don't want a second banner crowding the top of the page. Return
+  // empty so the card layout starts cleanly with About → Snapshot.
+  return "";
+}
+
+function render() {
+  if (!DATA) {
+    document.getElementById("content").innerHTML = '<div class="empty">No data baked into this dashboard.</div>';
+    return;
+  }
+  document.getElementById("health-badge").innerHTML = renderHealthBadge(DATA);
+  // Open-exposure pulse dot in the sticky title bar — green + pulsing when
+  // the bot has any open weather positions, gray when in cash. The label
+  // next to it spells out the count so the dot's meaning is self-evident.
+  const _pulse = document.getElementById("geo-pulse");
+  const _pulseLabel = document.getElementById("geo-pulse-label");
+  if (_pulse) {
+    const _nWx = ((DATA.kalshi || {}).n_positions) || 0;
+    if (_nWx > 0) {
+      _pulse.dataset.state = "active";
+      _pulse.title = `${_nWx} open weather position${_nWx === 1 ? "" : "s"}`;
+      if (_pulseLabel) _pulseLabel.textContent = `${_nWx} open`;
+    } else {
+      _pulse.dataset.state = "idle";
+      _pulse.title = "No open positions — bot is in cash";
+      if (_pulseLabel) _pulseLabel.textContent = "in cash";
+    }
+  }
+  // "Last refreshed" stamp — every page load re-runs the snapshot, so
+  // generated_at_utc IS when this view was refreshed (manual button,
+  // pull-to-refresh, or initial open all hit the same code path).
+  // Relative time ("2 min ago") rather than absolute clock time — the only
+  // question this line answers is "is this view stale?", and relative time
+  // answers it at a glance without mental math.
+  const lr = document.getElementById("last-refreshed");
+  if (lr && DATA.generated_at_utc) {
+    lr.textContent = `Last refreshed ${ageString(DATA.generated_at_utc)}`;
+  }
+  // Each section wraps its header + cards in a <details open> element so
+  // the user can collapse whole sections to reduce density. The <summary>
+  // becomes the section header (same styling as before) with a chevron
+  // that rotates when open/closed. Default: open.
+  const row = (...cards) => `<div class="section-row">${cards.join("")}</div>`;
+  // Slug from the section label so each <details> has a stable id we can
+  // persist to localStorage. "Today's plan" → "today-s-plan", etc.
+  const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const section = (label, ...rows) => `
+    <details class="dash-section" data-section-id="${slug(label)}" open>
+      <summary class="section-header"><span class="section-label"><span class="section-chevron">▾</span>${label}<span class="section-chevron">▾</span></span></summary>
+      ${rows.join("")}
+    </details>`;
+  // sectionClosed — same as section() but starts collapsed. Use for
+  // diagnostic / audit-only sections that aren't part of the daily glance.
+  // Persistence still respects user toggle (localStorage geo-section-<slug>).
+  const sectionClosed = (label, ...rows) => `
+    <details class="dash-section" data-section-id="${slug(label)}">
+      <summary class="section-header"><span class="section-label"><span class="section-chevron">▾</span>${label}<span class="section-chevron">▾</span></span></summary>
+      ${rows.join("")}
+    </details>`;
+  // sectionLocked — for the public demo. Shows the section header but the
+  // chevron is locked closed (clicking does nothing) and there is no data
+  // behind it — neither in the DOM nor in window.DATA. The lock is the
+  // visual signal "this section exists in the live build, redacted here."
+  const sectionLocked = (label) => `
+    <div class="dash-section dash-section-locked" data-section-id="${slug(label)}">
+      <div class="section-header section-header-locked" role="presentation">
+        <span class="section-label">
+          <span class="section-chevron section-chevron-locked" aria-hidden="true">🔒</span>
+          ${label}
+          <span class="section-locked-pill">redacted in demo</span>
+        </span>
+      </div>
+    </div>`;
+  // DEMO_MODE LOCKDOWN — diagnostic and roadmap sections are rendered as
+  // locked shells (visual presence kept, chevron locked, no data
+  // underneath). The data behind them is also stripped from window.DATA
+  // at the data-feed layer so DevTools spelunkers get nothing either.
+  // The remaining sections show synthetic data through generic
+  // prediction-market columns only.
+  const isDemo = !!DATA.demo_mode;
+  const sections = [
+    // "What is GEO?" lives ABOVE the Snapshot section (not inside it) so it
+    // remains visible when the user collapses Snapshot. It's a self-contained
+    // <details> already, so it doesn't need a section() wrapper.
+    row(renderAbout(DATA)),
+    section("Snapshot",
+      row(renderBalance(DATA), renderPnL(DATA), renderKPI(DATA)),
+    ),
+    section("Today's plan",
+      row(renderWatchList(DATA)),
+    ),
+    // Active book — each card on its own row so Open Trades and Resting
+    // Orders always stack vertically, never side-by-side. Aaron prefers
+    // the stacked layout because side-by-side compresses the wide tables
+    // (Open Trades has 9 columns) onto narrow cards. Adding a third card
+    // here later (e.g. open settlements) just needs another row() call;
+    // they'll stack automatically.
+    isDemo
+      ? section("Active book",
+          row(renderPositions(DATA)),
+        )
+      : section("Active book",
+          row(renderPositions(DATA)),
+          row(renderRestingOrders(DATA)),
+        ),
+    isDemo
+      ? section("Performance",
+          row(renderRecentTrades(DATA)),
+          row(renderPnLChart(DATA)),
+        )
+      : section("Performance",
+          row(renderRecentTrades(DATA)),
+          row(renderPnLChart(DATA), renderCalibration(DATA)),
+        ),
+    // Forecasts & observations section (MOS + CLI) was removed 2026-05-02.
+    // renderMOS / renderCLI / dd.mos_forecasts / dd.cli_observations remain
+    // in code for one-line revival when MOS leaves shadow mode.
+    isDemo
+      ? sectionLocked("Diagnostics")
+      : sectionClosed("Diagnostics",
+          row(renderBrierDrift(DATA)),
+          row(renderSkips(DATA), renderArbs(DATA)),
+        ),
+    isDemo
+      ? sectionLocked("Shipping/Shipped (RoadMap)")
+      : section("Shipping/Shipped (RoadMap)",
+          row(renderRoadmap(DATA)),
+        ),
+  ].join("");
+  // Sanity banner is itself a leak surface (the warning text reveals which
+  // internal invariant tripped); suppress it in demo mode.
+  const sanityBanner = isDemo ? "" : renderSanityBanner(DATA);
+  const demoBanner = renderDemoBanner(DATA);
+  document.getElementById("content").innerHTML = `${demoBanner}${sanityBanner}<div class="grid">${sections}</div>`;
+  // Wrap every table in a horizontal-scroll container so wide tables (open
+  // positions has 8 columns) scroll inside their card on phones, and the
+  // page itself never slides left/right.
+  document.querySelectorAll('.card > table').forEach(t => {
+    const wrap = document.createElement('div');
+    wrap.className = 'table-scroll';
+    t.parentNode.insertBefore(wrap, t);
+    wrap.appendChild(t);
+  });
+
+  // Persist each <details> open/collapsed state across reloads. Keyed by
+  // data-section-id so each section has its own slot in localStorage.
+  // First we restore any persisted state, then we attach a toggle listener
+  // to save changes on click. Sections without a stored value keep their
+  // default — the about card stays closed, regular sections stay open.
+  document.querySelectorAll('details[data-section-id]').forEach(el => {
+    const id = el.dataset.sectionId;
+    const key = 'geo-section-' + id;
+    let stored = null;
+    try { stored = localStorage.getItem(key); } catch (e) {}
+    if (stored === 'open') el.setAttribute('open', '');
+    else if (stored === 'collapsed') el.removeAttribute('open');
+    el.addEventListener('toggle', () => {
+      try { localStorage.setItem(key, el.open ? 'open' : 'collapsed'); } catch (e) {}
+    });
+  });
+}
+render();
+
+// Number-counter animations on big-stat cards. Each animatable element has
+// data-num-key (stable id, used as localStorage slot) and data-num-value
+// (the raw numeric value the cell represents). On render we compare the
+// new value to whatever was last persisted; if they differ meaningfully,
+// we tween the displayed text from old → new with an ease-out cubic over
+// ~500ms. First load = no prior value = no animation (silent display).
+function _geoAnimateBigNumbers() {
+  const fmt = (v, withSign) => {
+    if (Number.isNaN(v)) return "—";
+    const s = (v >= 0 ? "$" : "-$") + Math.abs(v).toFixed(2);
+    return withSign && v > 0 ? "+" + s : s;
+  };
+  document.querySelectorAll("[data-num-key][data-num-value]").forEach(el => {
+    const key = el.dataset.numKey;
+    const target = parseFloat(el.dataset.numValue);
+    if (Number.isNaN(target)) return;
+    let start = target;
+    try {
+      const stored = localStorage.getItem("geo-num-" + key);
+      if (stored !== null && stored !== "") {
+        const n = parseFloat(stored);
+        if (!Number.isNaN(n)) start = n;
+      }
+    } catch (e) { /* localStorage blocked — skip animation */ }
+    try { localStorage.setItem("geo-num-" + key, String(target)); } catch (e) {}
+    if (Math.abs(target - start) < 0.005) return; // first load or unchanged
+    // Detect signed format from the original textContent — pnl uses +/− prefix
+    const original = el.textContent.trim();
+    const withSign = original.startsWith("+");
+    const startTs = performance.now();
+    const dur = 550;
+    function step(now) {
+      const t = Math.min(1, (now - startTs) / dur);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const v = start + (target - start) * eased;
+      el.textContent = fmt(v, withSign);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
+}
+_geoAnimateBigNumbers();
+
+// Shooting-star spawner (dark mode only). Schedules itself recursively
+// with a random 10–20s delay; each fire creates one .shooting-star div in
+// .sticky-title-stars, runs its CSS animation, then removes itself. Stars
+// only spawn when the page is in dark mode AND the tab is visible — no
+// point burning frames on a hidden tab. Position is restricted to the
+// 0–22% / 78–100% horizontal bands (matching the static starfield's
+// exclusion zone) so a streak never crosses the GEO wordmark.
+function _geoSpawnShootingStar() {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  const visible = document.visibilityState === 'visible';
+  const container = document.querySelector('.sticky-title-stars');
+  if (isDark && visible && container) {
+    const star = document.createElement('div');
+    star.className = 'shooting-star';
+    // Avoid the central 25–75% band. Coin flip picks left or right side.
+    const onLeft = Math.random() < 0.5;
+    const leftPct = onLeft ? Math.random() * 22 : 78 + Math.random() * 22;
+    const topPx = Math.random() * 110; // bar is ~150px tall, leave room for trail
+    star.style.left = leftPct + '%';
+    star.style.top = topPx + 'px';
+    container.appendChild(star);
+    // CSS animation is 1.3s; schedule cleanup slightly after.
+    setTimeout(() => star.remove(), 1500);
+  }
+  const nextDelayMs = 10000 + Math.random() * 10000; // 10–20s
+  setTimeout(_geoSpawnShootingStar, nextDelayMs);
+}
+// Kick off the loop with a short initial delay so the page settles first.
+setTimeout(_geoSpawnShootingStar, 3000);
+</script>
+</body>
+</html>
