@@ -1,6 +1,6 @@
 # GEO — The Kalshi Weather Bot
 
-> **Live demo:** **[apeabody007.github.io/apeabody007-GEO-The-Kalshi-Weather-Bot-DEMO](https://apeabody007.github.io/apeabody007-GEO-The-Kalshi-Weather-Bot-DEMO/)**
+> **Live demo:** **[apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO](https://apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO/)**
 
 A live algorithmic trading system for [Kalshi](https://kalshi.com) weather
 prediction markets — a CFTC-regulated event-prediction exchange. GEO scans
