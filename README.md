@@ -1,4 +1,4 @@
-# GEO — The Kalshi Weather Bot
+# GEO — The Kalshi Weather Bot (DEMO)
 
 > **Live demo:** **[apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO](https://apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO/)**
 
