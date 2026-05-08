@@ -58,6 +58,7 @@ private and not part of this repository.
 
 ## Built by
 
-[Aaron Peabody](https://www.linkedin.com/in/aaronpeabody7/) — BS Economics
+[Aaron Peabody](https://www.linkedin.com/in/aaronpeabody7/) — BA Economics
 (Wisconsin), BS Psychology (UCF). For collaboration or hiring inquiries,
 reach me on LinkedIn.
+
