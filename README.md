@@ -56,6 +56,15 @@ private and not part of this repository.
   curve, automated reconciliation against the exchange's official
   settlement source.
 
+## See also
+
+**[Quant Toolkit](https://github.com/apeabody007/Quant-toolkit)** — a
+venue-agnostic Cowork plugin distilled from operating GEO. Nine skills
+covering the full loop from idea to live trading: Kelly sizing,
+calibration audit, EMOS bias correction, backtest harness, maker pricing,
+P&L attribution, pre-flight checklist, market scanner, drawdown monitor.
+Bring your own model and exchange.
+
 ## Built by
 
 [Aaron Peabody](https://www.linkedin.com/in/aaronpeabody7/) — BA Economics
