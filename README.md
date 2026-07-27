@@ -16,11 +16,13 @@ forecast, and trades mispricings with real capital.
 
 This repository hosts a **public, read-only preview** of GEO's live
 operations dashboard, rendered with **fully synthetic data**. No real
-positions, no real bankroll, no live API calls. Every section that would
-reveal the bot's competitive setup (per-model diagnostics, calibration
-curve, structural-arb detector, resting maker orders, project roadmap) is
-locked and intentionally absent from the public preview. Source code is
-private.
+positions, no real bankroll, no live API calls. The preview mirrors the
+live dashboard section for section: watch list, open positions, resting
+orders, P&L and calibration charts, per-cell model drift, skip activity,
+the structural-arb detector, and the roadmap. Forecast models appear
+under generic labels (Model A through H), and the strategy's parameters
+(blend weights, edge thresholds, price filters, sizing constants) are
+not encoded anywhere in the page or its data. Source code is private.
 
 The live system runs on the operator's machine against real Kalshi
 markets, served as a Tailscale-private PWA.
