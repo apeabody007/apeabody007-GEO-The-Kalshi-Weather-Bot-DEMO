@@ -50,7 +50,7 @@ private and not part of this repository.
   caps; maker-only pricing to sidestep taker fees.
 - **Reliability:** single-instance file lock prevents order collisions,
   circuit breaker around upstream APIs throttles rate-limits, year-round
-  local-time handling avoids DST settlement misalignment, ~110 pytest
+  local-time handling avoids DST settlement misalignment, 600+ pytest
   cases gate every release.
 - **Observability:** server-rendered HTML on every page load (no caching
   between operator and the truth), per-cell drift detection, full P&L
