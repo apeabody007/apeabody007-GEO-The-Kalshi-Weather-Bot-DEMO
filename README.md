@@ -1,14 +1,14 @@
-# GEO — The Kalshi Weather Bot
+# GEO: The Kalshi Weather Bot
 
 > **Live demo:** **[apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO](https://apeabody007.github.io/GEO-The-Kalshi-Weather-Bot-DEMO/)**
 
-A live algorithmic trading system for [Kalshi](https://kalshi.com) weather
-prediction markets — a CFTC-regulated event-prediction exchange. GEO scans
+An algorithmic trading system for [Kalshi](https://kalshi.com) weather
+prediction markets, a CFTC-regulated event-prediction exchange. GEO scans
 1°-wide bracket and tail-cutoff contracts on daily-high temperatures across
 20 U.S. cities, prices each market against a multi-model probabilistic
 forecast, and trades mispricings with real capital.
 
-![GEO operations dashboard — synthetic data](dashboard.png)
+![GEO operations dashboard, synthetic data](dashboard.png)
 
 ---
 
@@ -24,7 +24,7 @@ under generic labels (Model A through H), and the strategy's parameters
 (blend weights, edge thresholds, price filters, sizing constants) are
 not encoded anywhere in the page or its data. Source code is private.
 
-The live system runs on the operator's machine against real Kalshi
+The real system runs on the operator's machine against real Kalshi
 markets, served as a Tailscale-private PWA.
 
 ## What's here
@@ -60,8 +60,8 @@ private and not part of this repository.
 
 ## See also
 
-**[Quant Toolkit](https://github.com/apeabody007/Quant-toolkit)** — a
-venue-agnostic Cowork plugin distilled from operating GEO. Nine skills
+**[Quant Toolkit](https://github.com/apeabody007/Quant-toolkit)**, a
+venue-agnostic Claude plugin distilled from operating GEO. Nine skills
 covering the full loop from idea to live trading: Kelly sizing,
 calibration audit, EMOS bias correction, backtest harness, maker pricing,
 P&L attribution, pre-flight checklist, market scanner, drawdown monitor.
@@ -69,7 +69,6 @@ Bring your own model and exchange.
 
 ## Built by
 
-[Aaron Peabody](https://www.linkedin.com/in/aaronpeabody7/) — BA Economics
-(Wisconsin), BS Psychology (UCF). For collaboration or hiring inquiries,
-reach me on LinkedIn.
+[Aaron Peabody](https://aaronpeabody.dev). BA Economics (Wisconsin),
+BS Psychology (UCF).
 
